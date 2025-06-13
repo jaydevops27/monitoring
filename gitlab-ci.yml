@@ -47,7 +47,3 @@ monitor_development:
   
   # Allow failure so pipeline doesn't stop if there are restart alerts
   allow_failure: true
-  
-  only:
-    variables:
-      - $MONITOR_DEVELOPMENT

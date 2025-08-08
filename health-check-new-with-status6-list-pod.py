@@ -65,11 +65,10 @@ def get_health_check_endpoints(namespace):
     ingresses = networking_v1.list_namespaced_ingress(namespace)
     
     health_endpoints = {}
+    basic_endpoints = {}
     services_no_selector = []
-    services_no_pods = []
     services_no_health_probe = []
     services_no_ingress = []
-    services_with_basic_endpoint = {}  # Services with ingress but no health probe
     suspended_services = []
     
     for svc in services.items:
@@ -126,7 +125,7 @@ def get_health_check_endpoints(namespace):
             }
         elif ingress_endpoint and not health_path:
             # Service has ingress but no health probe - test basic connectivity
-            services_with_basic_endpoint[svc_name] = {
+            basic_endpoints[svc_name] = {
                 'service': svc_name,
                 'endpoint': ingress_endpoint,
                 'total_pods': total_pods,
@@ -140,81 +139,23 @@ def get_health_check_endpoints(namespace):
             services_no_health_probe.append(svc_name)
     
     return (list(health_endpoints.values()), 
-            list(services_with_basic_endpoint.values()),
+            list(basic_endpoints.values()),
             services_no_selector, 
-            services_no_pods, 
             services_no_health_probe,
             services_no_ingress,
             suspended_services)
 
-def check_and_display_health(endpoints, namespace):
-    """Check basic connectivity for services without health endpoints"""
-    if not basic_endpoints:
-        return []
+def check_health_endpoints(endpoints, namespace):
+    """Check health endpoints"""
+    if not endpoints:
+        return [], 0
     
-    print(f"\n{C.B}{C.C}🌐 Basic Connectivity Check: {namespace} ({len(basic_endpoints)} services){C.E}")
-    print(f"{C.C}{'─' * 70}{C.E}")
-    
-    results = []
-    
-    for i, ep in enumerate(basic_endpoints, 1):
-        service_name = ep['service']
-        endpoint_url = ep['endpoint']
-        total_pods = ep['total_pods']
-        faulty_pod_names = ep['faulty_pod_names']
-        
-        print(f"[{i}/{len(basic_endpoints)}] {service_name:<20}", end=' ')
-        
-        try:
-            response = requests.get(endpoint_url, timeout=5, verify=False, allow_redirects=True)
-            
-            if response.status_code in [200, 301, 302, 403]:  # Accessible responses
-                print(f"{C.G}✅ ACCESSIBLE{C.E}")
-                connectivity_status = '🟢 ACCESSIBLE'
-            elif response.status_code in [404]:
-                print(f"{C.Y}⚠️  NOT FOUND{C.E}")
-                connectivity_status = '🟡 NOT FOUND'
-            else:
-                print(f"{C.R}❌ HTTP {response.status_code}{C.E}")
-                connectivity_status = f'🔴 HTTP {response.status_code}'
-            
-            # Format faulty pod names with count
-            if faulty_pod_names:
-                fault_count = len(faulty_pod_names)
-                faulty_display = f"{C.R}{fault_count}: {', '.join(faulty_pod_names)}{C.E}"
-            else:
-                faulty_display = f"{C.G}0: None{C.E}"
-            
-            results.append([service_name, connectivity_status, str(total_pods), faulty_display])
-            
-        except requests.exceptions.Timeout:
-            print(f"{C.R}⏱️  TIMEOUT{C.E}")
-            fault_count = len(faulty_pod_names)
-            faulty_display = f"{C.R}{fault_count}: {', '.join(faulty_pod_names)}{C.E}" if faulty_pod_names else f"{C.G}0: None{C.E}"
-            results.append([service_name, '🔴 TIMEOUT', str(total_pods), faulty_display])
-        except requests.exceptions.ConnectionError:
-            print(f"{C.R}🚫 UNREACHABLE{C.E}")
-            fault_count = len(faulty_pod_names)
-            faulty_display = f"{C.R}{fault_count}: {', '.join(faulty_pod_names)}{C.E}" if faulty_pod_names else f"{C.G}0: None{C.E}"
-            results.append([service_name, '🔴 UNREACHABLE', str(total_pods), faulty_display])
-        except Exception as e:
-            print(f"{C.R}💥 ERROR{C.E}")
-            fault_count = len(faulty_pod_names)
-            faulty_display = f"{C.R}{fault_count}: {', '.join(faulty_pod_names)}{C.E}" if faulty_pod_names else f"{C.G}0: None{C.E}"
-            results.append([service_name, '🔴 ERROR', str(total_pods), faulty_display])
-    
-    return results
     print(f"\n{C.B}{C.C}🏥 Health Check: {namespace} ({len(endpoints)} endpoints){C.E}")
     print(f"{C.C}{'─' * 70}{C.E}")
-    
-    if not endpoints:
-        print(f"{C.Y}⚠️  No health endpoints found{C.E}")
-        return [], 0
     
     results = []
     healthy_count = 0
     
-    # Check health and build results in one pass
     for i, ep in enumerate(endpoints, 1):
         service_name = ep['service']
         endpoint_url = ep['endpoint']
@@ -257,7 +198,7 @@ def check_and_display_health(endpoints, namespace):
                     health_status = f'🟡 {status}'
             else:
                 print(f"{C.R}❌ HTTP {response.status_code}{C.E}")
-                status, health_status = f'HTTP_{response.status_code}', '🔴 ERROR'
+                health_status = '🔴 ERROR'
             
             # Format faulty pod names with count
             if faulty_pod_names:
@@ -344,11 +285,11 @@ def check_basic_connectivity(basic_endpoints, namespace):
     
     return results
 
-def print_compact_summary(health_results, healthy_count, basic_results, services_no_selector, services_no_pods, services_no_health_probe, services_no_ingress, suspended_services, namespace):
+def print_results(health_results, healthy_count, basic_results, services_no_selector, services_no_health_probe, services_no_ingress, suspended_services):
     # Health check results
     if health_results:
         total_endpoints = len(health_results)
-        success_rate = (healthy_count/total_endpoints)*100 if total_endpoints > 0 else 0
+        success_rate = (healthy_count/total_endpoints)*100
         
         print(f"\n{C.B}📊 Health Check Results{C.E}")
         print(tabulate(health_results, headers=['Service', 'Status', 'Total Pods', 'Faulty Pods'], tablefmt='simple'))
@@ -362,42 +303,44 @@ def print_compact_summary(health_results, healthy_count, basic_results, services
         
         accessible_count = sum(1 for r in basic_results if 'ACCESSIBLE' in r[1])
         total_basic = len(basic_results)
-        basic_success_rate = (accessible_count/total_basic)*100 if total_basic > 0 else 0
+        basic_success_rate = (accessible_count/total_basic)*100
         print(f"\n{C.B}Connectivity Stats:{C.E} {C.G}{accessible_count}/{total_basic} accessible{C.E} ({basic_success_rate:.0f}%)")
     
     # Services categorization
-    print(f"\n{C.B}📋 Service Categories{C.E}")
-    
-    if suspended_services:
-        print(f"\n{C.R}🛑 Suspended Services (0 pods): {len(suspended_services)}{C.E}")
-        for svc in suspended_services[:5]:  # Show first 5
-            print(f"  • {svc}")
-        if len(suspended_services) > 5:
-            print(f"  ... and {len(suspended_services)-5} more")
-    
-    if services_no_selector:
-        print(f"\n{C.Y}🔸 No Selector: {len(services_no_selector)}{C.E}")
-        for svc in services_no_selector[:3]:
-            print(f"  • {svc}")
-        if len(services_no_selector) > 3:
-            print(f"  ... and {len(services_no_selector)-3} more")
-    
-    if services_no_health_probe:
-        print(f"\n{C.Y}🔸 No Health Probe: {len(services_no_health_probe)}{C.E}")
-        for svc in services_no_health_probe[:3]:
-            print(f"  • {svc}")
-        if len(services_no_health_probe) > 3:
-            print(f"  ... and {len(services_no_health_probe)-3} more")
-    
-    if services_no_ingress:
-        print(f"\n{C.Y}🔸 No Ingress Route: {len(services_no_ingress)}{C.E}")
-        for svc in services_no_ingress[:3]:
-            print(f"  • {svc}")
-        if len(services_no_ingress) > 3:
-            print(f"  ... and {len(services_no_ingress)-3} more")
+    if any([suspended_services, services_no_selector, services_no_health_probe, services_no_ingress]):
+        print(f"\n{C.B}📋 Service Categories{C.E}")
+        
+        if suspended_services:
+            print(f"\n{C.R}🛑 Suspended Services (0 pods): {len(suspended_services)}{C.E}")
+            for svc in suspended_services[:5]:
+                print(f"  • {svc}")
+            if len(suspended_services) > 5:
+                print(f"  ... and {len(suspended_services)-5} more")
+        
+        if services_no_selector:
+            print(f"\n{C.Y}🔸 No Selector: {len(services_no_selector)}{C.E}")
+            for svc in services_no_selector[:3]:
+                print(f"  • {svc}")
+            if len(services_no_selector) > 3:
+                print(f"  ... and {len(services_no_selector)-3} more")
+        
+        if services_no_health_probe:
+            print(f"\n{C.Y}🔸 No Health Probe: {len(services_no_health_probe)}{C.E}")
+            for svc in services_no_health_probe[:3]:
+                print(f"  • {svc}")
+            if len(services_no_health_probe) > 3:
+                print(f"  ... and {len(services_no_health_probe)-3} more")
+        
+        if services_no_ingress:
+            print(f"\n{C.Y}🔸 No Ingress Route: {len(services_no_ingress)}{C.E}")
+            for svc in services_no_ingress[:3]:
+                print(f"  • {svc}")
+            if len(services_no_ingress) > 3:
+                print(f"  ... and {len(services_no_ingress)-3} more")
     
     # Overall health status
     if health_results:
+        success_rate = (healthy_count/len(health_results))*100
         if success_rate >= 90:
             print(f"\n{C.G}🎉 System healthy{C.E}")
         elif success_rate >= 70:
@@ -411,19 +354,19 @@ if __name__ == "__main__":
     args = parser.parse_args()
     
     try:
-        (health_endpoints, basic_endpoints, services_no_selector, services_no_pods, 
+        (health_endpoints, basic_endpoints, services_no_selector, 
          services_no_health_probe, services_no_ingress, suspended_services) = get_health_check_endpoints(args.namespace)
         
         # Check health endpoints
-        health_results, healthy_count = check_and_display_health(health_endpoints, args.namespace)
+        health_results, healthy_count = check_health_endpoints(health_endpoints, args.namespace)
         
         # Check basic connectivity for services without health probes
         basic_results = check_basic_connectivity(basic_endpoints, args.namespace)
         
         # Print comprehensive summary
-        print_compact_summary(health_results, healthy_count, basic_results, 
-                            services_no_selector, services_no_pods, services_no_health_probe, 
-                            services_no_ingress, suspended_services, args.namespace)
+        print_results(health_results, healthy_count, basic_results, 
+                     services_no_selector, services_no_health_probe, 
+                     services_no_ingress, suspended_services)
         
         timestamp = datetime.now().strftime("%H:%M:%S")
         print(f"\n{C.C}✨ Completed at {timestamp}{C.E}")

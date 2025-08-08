@@ -225,6 +225,8 @@ def check_health_endpoints(endpoints, namespace):
             faulty_display = f"{C.R}{fault_count}: {', '.join(faulty_pod_names)}{C.E}" if faulty_pod_names else f"{C.G}0: None{C.E}"
             results.append([service_name, '🔴 ERROR', str(total_pods), faulty_display])
     
+    return results, healthy_count
+    
 def check_basic_connectivity_for_services(services_without_health):
     """Check basic connectivity for services without health checks"""
     if not services_without_health:

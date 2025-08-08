@@ -225,7 +225,69 @@ def check_health_endpoints(endpoints, namespace):
             faulty_display = f"{C.R}{fault_count}: {', '.join(faulty_pod_names)}{C.E}" if faulty_pod_names else f"{C.G}0: None{C.E}"
             results.append([service_name, '🔴 ERROR', str(total_pods), faulty_display])
     
-    return results, healthy_count
+def check_basic_connectivity_for_services(services_without_health):
+    """Check basic connectivity for services without health checks"""
+    if not services_without_health:
+        return []
+    
+    print(f"\n{C.B}{C.C}🌐 Checking Basic Connectivity for Services Without Health Checks{C.E}")
+    print(f"{C.C}{'─' * 70}{C.E}")
+    
+    updated_services = []
+    
+    for i, svc_info in enumerate(services_without_health, 1):
+        service_name = svc_info['service']
+        reason = svc_info['reason']
+        total_pods = svc_info['total_pods']
+        faulty_pod_names = svc_info['faulty_pod_names']
+        ingress_endpoint = svc_info['ingress_endpoint']
+        
+        print(f"[{i}/{len(services_without_health)}] {service_name:<20}", end=' ')
+        
+        # If no ingress endpoint, can't check connectivity
+        if not ingress_endpoint:
+            print(f"{C.Y}🔸 {reason}{C.E}")
+            connectivity_status = f"🔸 {reason}"
+        else:
+            # Test basic connectivity
+            try:
+                response = requests.get(ingress_endpoint, timeout=5, verify=False, allow_redirects=True)
+                
+                if response.status_code in [200, 301, 302, 403]:  # Accessible responses
+                    print(f"{C.G}✅ UP - {reason}{C.E}")
+                    connectivity_status = f"🟢 UP - {reason}"
+                elif response.status_code in [404]:
+                    print(f"{C.Y}⚠️  UP - {reason} (404){C.E}")
+                    connectivity_status = f"🟡 UP - {reason} (404)"
+                else:
+                    print(f"{C.R}❌ DOWN - {reason} (HTTP {response.status_code}){C.E}")
+                    connectivity_status = f"🔴 DOWN - {reason}"
+                
+            except requests.exceptions.Timeout:
+                print(f"{C.R}⏱️  DOWN - {reason} (TIMEOUT){C.E}")
+                connectivity_status = f"🔴 DOWN - {reason} (TIMEOUT)"
+            except requests.exceptions.ConnectionError:
+                print(f"{C.R}🚫 DOWN - {reason} (UNREACHABLE){C.E}")
+                connectivity_status = f"🔴 DOWN - {reason} (UNREACHABLE)"
+            except Exception as e:
+                print(f"{C.R}💥 DOWN - {reason} (ERROR){C.E}")
+                connectivity_status = f"🔴 DOWN - {reason} (ERROR)"
+        
+        # Format faulty pod names with count
+        if faulty_pod_names:
+            fault_count = len(faulty_pod_names)
+            faulty_display = f"{C.R}{fault_count}: {', '.join(faulty_pod_names)}{C.E}"
+        else:
+            faulty_display = f"{C.G}0: None{C.E}"
+        
+        updated_services.append({
+            'service': service_name,
+            'status': connectivity_status,
+            'total_pods': total_pods,
+            'faulty_display': faulty_display
+        })
+    
+    return updated_services
 
 def check_basic_connectivity(basic_endpoints, namespace):
     """Check basic connectivity for services without health endpoints"""

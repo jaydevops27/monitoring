@@ -361,7 +361,9 @@ def print_compact_summary(health_results, healthy_count, basic_results, services
         print(tabulate(basic_results, headers=['Service', 'Status', 'Total Pods', 'Faulty Pods'], tablefmt='simple'))
         
         accessible_count = sum(1 for r in basic_results if 'ACCESSIBLE' in r[1])
-        print(f"\n{C.B}Connectivity Stats:{C.E} {C.G}{accessible_count}/{len(basic_results)} accessible{C.E}")
+        total_basic = len(basic_results)
+        basic_success_rate = (accessible_count/total_basic)*100 if total_basic > 0 else 0
+        print(f"\n{C.B}Connectivity Stats:{C.E} {C.G}{accessible_count}/{total_basic} accessible{C.E} ({basic_success_rate:.0f}%)")
     
     # Services categorization
     print(f"\n{C.B}📋 Service Categories{C.E}")
@@ -428,3 +430,5 @@ if __name__ == "__main__":
         
     except Exception as e:
         print(f"{C.R}❌ Error: {str(e)}{C.E}")
+        import traceback
+        traceback.print_exc()

@@ -157,10 +157,14 @@ def check_and_display_health(endpoints, namespace):
                         # Standard actuator format: {"status": "UP"}
                         status = health_data.get('status', 'UNKNOWN')
                     elif 'pong' in health_data:
-                        # Ping format: {"pong": true}
-                        status = 'UP' if health_data.get('pong') else 'DOWN'
+                        # Ping format: {"pong": true} or {"pong": "true"}
+                        pong_value = health_data.get('pong')
+                        if pong_value is True or str(pong_value).lower() == 'true':
+                            status = 'UP'
+                        else:
+                            status = 'DOWN'
                     else:
-                        # Unknown format but 200 OK
+                        # Unknown format but 200 OK, assume healthy
                         status = 'UP'
                     
                     if status == 'UP':

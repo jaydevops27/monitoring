@@ -164,18 +164,19 @@ def check_and_display_health(endpoints, namespace):
                         else:
                             status = 'DOWN'
                     else:
-                        # Unknown format but 200 OK, assume healthy
+                        # Unknown JSON format but 200 OK, assume healthy
                         status = 'UP'
                     
-                    if status == 'UP':
-                        print(f"{C.G}✅ UP{C.E}")
-                        health_status, healthy_count = '🟢 UP', healthy_count + 1
-                    else:
-                        print(f"{C.Y}⚠️  {status}{C.E}")
-                        health_status = f'🟡 {status}'
                 except json.JSONDecodeError:
-                    print(f"{C.R}❌ INVALID JSON{C.E}")
-                    status, health_status = 'INVALID_JSON', '🟡 WARNING'
+                    # Not JSON (plain text, HTML, etc.) but 200 OK means service is up
+                    status = 'UP'
+                
+                if status == 'UP':
+                    print(f"{C.G}✅ UP{C.E}")
+                    health_status, healthy_count = '🟢 UP', healthy_count + 1
+                else:
+                    print(f"{C.Y}⚠️  {status}{C.E}")
+                    health_status = f'🟡 {status}'
             else:
                 print(f"{C.R}❌ HTTP {response.status_code}{C.E}")
                 status, health_status = f'HTTP_{response.status_code}', '🔴 ERROR'

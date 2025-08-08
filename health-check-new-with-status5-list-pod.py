@@ -150,7 +150,19 @@ def check_and_display_health(endpoints, namespace):
             
             if response.status_code == 200:
                 try:
-                    status = response.json().get('status', 'UNKNOWN')
+                    health_data = response.json()
+                    
+                    # Handle different response formats
+                    if 'status' in health_data:
+                        # Standard actuator format: {"status": "UP"}
+                        status = health_data.get('status', 'UNKNOWN')
+                    elif 'pong' in health_data:
+                        # Ping format: {"pong": true}
+                        status = 'UP' if health_data.get('pong') else 'DOWN'
+                    else:
+                        # Unknown format but 200 OK
+                        status = 'UP'
+                    
                     if status == 'UP':
                         print(f"{C.G}✅ UP{C.E}")
                         health_status, healthy_count = '🟢 UP', healthy_count + 1

@@ -1,49 +1,43 @@
-stages:
-  - monitor
-
-variables:
-  KUBECTL_VERSION: "1.28.0"
-  
-# Development monitoring
-monitor_development:
-  image: python:3.9-slim
-  stage: monitor
+k8s_health_check:
+  stage: test
+  image: python:3.9
+  variables:
+    PREENV: "dev"  # Change to your target environment
   before_script:
-    # Install dependencies
-    - apt-get update -qq && apt-get install -y -qq curl
-    - pip3 install pyyaml
-    
-    # Install kubectl
-    - curl -LO "https://dl.k8s.io/release/v${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
-    - chmod +x kubectl && mv kubectl /usr/local/bin/
-    
-    # Setup kubeconfig from your npeconfig file
-    - mkdir -p ~/.kube
-    - sed "s/_DEV_SERVER_URL/${DEV_K8S_SERVER_URL}/g; s/DEV_USERNAME/${DEV_K8S_USERNAME}/g; s/DEV_PASSWORD_/${DEV_K8S_PASSWORD}/g" npeconfig > ~/.kube/config
-    
-    # Test connection
-    - kubectl cluster-info
-    - echo "✅ Connected to DEVELOPMENT cluster"
-    
-    # Create monitoring output directory
-    - mkdir -p monitoring-output
-    - echo "📁 Created monitoring-output directory for artifacts"
-  
+    - pip install kubernetes requests tabulate reportlab
   script:
-    - echo "🚧 Monitoring DEVELOPMENT namespace..."
-    - echo "🔍 Threshold set to ${DEV_THRESHOLD:-3} restarts"
-    - python3 pod_restart_monitor.py --namespaces development --threshold ${DEV_THRESHOLD:-3}
-    - echo "📊 Development monitoring completed"
-    
-    # Show what files were created
-    - echo "📂 Generated files:"
-    - ls -la monitoring-output/ || echo "No monitoring-output directory found"
-  
+    - |
+      if [ $PREENV = dev ]
+      then
+        
+        # Setup kubectl and kubeconfig for dev environment
+        curl -LO https://storage.googleapis.com/kubernetes-release/release/stable.txt
+        curl -LO https://storage.googleapis.com/kubernetes-release/release/$(cat stable.txt)/bin/linux/amd64/kubectl
+        chmod +x kubectl
+        mv kubectl /usr/local/bin/
+        
+        # Use your existing username/password pattern
+        USERNAME=$B01USERNAME
+        PASSWORD=$B01PASSWORD
+        
+        # Configure kubectl with your credentials (adjust server URL as needed)
+        kubectl config set-cluster k8s --server="https://your-k8s-server:6443" --insecure-skip-tls-verify=true
+        kubectl config set-credentials dev-user --username="$USERNAME" --password="$PASSWORD"
+        kubectl config set-context default --cluster=k8s --user=dev-user
+        kubectl config use-context default
+        
+        # Run health check for dev namespace
+        python k8s_health_check.py your-dev-namespace --output-format both --output-dir reports
+        
+      fi
   artifacts:
-    when: always
+    reports:
+      junit: reports/junit.xml
     paths:
-      - "monitoring-output/"
+      - reports/
     expire_in: 1 week
-  
-  # Allow failure so pipeline doesn't stop if there are restart alerts
-  allow_failure: true
+    when: always
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+    - if: '$CI_COMMIT_BRANCH == "main"'
+    - when: manual

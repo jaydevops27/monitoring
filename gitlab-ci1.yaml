@@ -1,0 +1,225 @@
+# GitLab CI/CD Pipeline for Kubernetes Health Checks
+stages:
+  - health-check
+  - notify
+
+variables:
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+  # Default namespace - can be overridden
+  K8S_NAMESPACE: "default"
+
+cache:
+  paths:
+    - .cache/pip
+
+# Template for health check jobs
+.health_check_template:
+  stage: health-check
+  image: python:3.11-slim
+  before_script:
+    # Install system dependencies for PDF generation
+    - apt-get update && apt-get install -y 
+        gcc 
+        python3-dev 
+        libcairo2 
+        libpango-1.0-0 
+        libpangocairo-1.0-0 
+        libgdk-pixbuf2.0-0 
+        libffi-dev 
+        shared-mime-info
+        curl
+    # Setup kubeconfig
+    - mkdir -p $HOME/.kube
+    - echo $KUBECONFIG_CONTENT | base64 -d > $HOME/.kube/config
+    - chmod 600 $HOME/.kube/config
+    # Verify kubernetes connection
+    - |
+      echo "Testing Kubernetes connection..."
+      python -c "from kubernetes import client, config; config.load_kube_config(); v1 = client.CoreV1Api(); print('✅ Connected to cluster')"
+    # Install Python dependencies
+    - pip install --upgrade pip
+    - pip install -r requirements.txt
+  artifacts:
+    paths:
+      - reports/
+    reports:
+      junit: reports/junit.xml
+    expire_in: 30 days
+    when: always
+
+# Manual health check - can be triggered anytime
+health-check-manual:
+  extends: .health_check_template
+  script:
+    - |
+      echo "🏥 Running health check for namespace: ${NAMESPACE_OVERRIDE:-$K8S_NAMESPACE}"
+      python k8s_health_check.py ${NAMESPACE_OVERRIDE:-$K8S_NAMESPACE} --output-format both --output-dir reports/
+  when: manual
+  allow_failure: false
+
+# Scheduled health check - runs on schedule
+health-check-scheduled:
+  extends: .health_check_template
+  script:
+    - |
+      # Check multiple namespaces if specified
+      NAMESPACES="${K8S_NAMESPACES:-$K8S_NAMESPACE}"
+      for namespace in $NAMESPACES; do
+        echo "🏥 Checking namespace: $namespace"
+        python k8s_health_check.py $namespace --output-format pdf --output-dir reports/
+        
+        # Optional: Send metrics to monitoring system
+        if [ ! -z "$PROMETHEUS_PUSHGATEWAY_URL" ]; then
+          echo "📊 Sending metrics to Prometheus..."
+          # Extract metrics from the check and push to Prometheus
+          python -c "
+import sys
+import requests
+from pathlib import Path
+# Read the latest report and extract metrics
+# Push to Prometheus pushgateway
+# This is a placeholder - implement based on your monitoring setup
+          "
+        fi
+      done
+  only:
+    - schedules
+  allow_failure: false
+
+# Health check on merge requests
+health-check-mr:
+  extends: .health_check_template
+  script:
+    - |
+      echo "🏥 Running health check for MR validation"
+      python k8s_health_check.py ${K8S_NAMESPACE} --output-format both --output-dir reports/
+      
+      # Post comment to MR with results summary
+      if [ ! -z "$CI_MERGE_REQUEST_IID" ]; then
+        echo "📝 Posting results to MR..."
+        # Extract summary from report
+        SUMMARY=$(python -c "
+import json
+from pathlib import Path
+# Read report and generate markdown summary
+print('Health check completed. Check artifacts for detailed report.')
+        ")
+        
+        # Post to GitLab MR (requires API token)
+        if [ ! -z "$GITLAB_API_TOKEN" ]; then
+          curl -X POST \
+            -H "PRIVATE-TOKEN: $GITLAB_API_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{\"body\": \"$SUMMARY\"}" \
+            "$CI_API_V4_URL/projects/$CI_PROJECT_ID/merge_requests/$CI_MERGE_REQUEST_IID/notes"
+        fi
+      fi
+  only:
+    - merge_requests
+  allow_failure: true
+
+# Production health check - runs on main branch
+health-check-production:
+  extends: .health_check_template
+  script:
+    - |
+      echo "🏥 Running production health check"
+      python k8s_health_check.py production --output-format both --output-dir reports/
+      
+      # Fail the pipeline if critical issues found
+      if [ $? -ne 0 ]; then
+        echo "❌ Critical issues detected in production!"
+        exit 1
+      fi
+  only:
+    - main
+    - master
+  when: manual
+  allow_failure: false
+
+# Notification job - sends alerts
+notify-slack:
+  stage: notify
+  image: curlimages/curl:latest
+  script:
+    - |
+      if [ "$CI_JOB_STATUS" == "success" ]; then
+        STATUS_EMOJI="✅"
+        STATUS_COLOR="good"
+      else
+        STATUS_EMOJI="❌"
+        STATUS_COLOR="danger"
+      fi
+      
+      if [ ! -z "$SLACK_WEBHOOK_URL" ]; then
+        curl -X POST -H 'Content-type: application/json' \
+          --data "{
+            \"attachments\": [{
+              \"color\": \"$STATUS_COLOR\",
+              \"title\": \"K8s Health Check $STATUS_EMOJI\",
+              \"text\": \"Namespace: $K8S_NAMESPACE\nPipeline: $CI_PIPELINE_URL\",
+              \"footer\": \"GitLab CI\",
+              \"ts\": $(date +%s)
+            }]
+          }" \
+          $SLACK_WEBHOOK_URL
+      fi
+  when: on_failure
+  only:
+    - schedules
+    - main
+    - master
+  allow_failure: true
+
+# Deploy reports to GitLab Pages (optional)
+pages:
+  stage: notify
+  image: alpine:latest
+  script:
+    - mkdir -p public
+    - cp -r reports/* public/ 2>/dev/null || true
+    - |
+      # Create index.html for GitLab Pages
+      cat > public/index.html <<EOF
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>K8s Health Reports</title>
+        <style>
+          body { font-family: Arial, sans-serif; margin: 40px; }
+          h1 { color: #333; }
+          .report-list { list-style-type: none; padding: 0; }
+          .report-list li { margin: 10px 0; }
+          .report-list a { 
+            display: inline-block; 
+            padding: 10px 15px; 
+            background: #007bff; 
+            color: white; 
+            text-decoration: none; 
+            border-radius: 5px; 
+          }
+          .report-list a:hover { background: #0056b3; }
+        </style>
+      </head>
+      <body>
+        <h1>Kubernetes Health Check Reports</h1>
+        <ul class="report-list">
+      EOF
+      
+      # List all PDF reports
+      for file in public/*.pdf; do
+        if [ -f "$file" ]; then
+          filename=$(basename "$file")
+          echo "<li><a href=\"$filename\">$filename</a></li>" >> public/index.html
+        fi
+      done
+      
+      echo "</ul></body></html>" >> public/index.html
+  artifacts:
+    paths:
+      - public
+  only:
+    - main
+    - master
+  dependencies:
+    - health-check-production

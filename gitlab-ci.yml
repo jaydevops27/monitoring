@@ -10,18 +10,12 @@ Monitor-B07:
       if [ $PREENV = dev ]
       then
         
-        # Setup kubectl (matching your pattern)
+        # Setup kubectl (download once)
         curl -LO https://storage.googleapis.com/kubernetes-release/release/stable.txt
         curl -LO https://storage.googleapis.com/kubernetes-release/release/$(cat stable.txt)/bin/linux/amd64/kubectl
         chmod +x kubectl
         mv kubectl /usr/local/bin/
         
-        USERNAME=$B07USERNAME
-        PASSWORD=$B07PASSWORD
-        
-        # Use your existing config file
-        chmod +x ./kubectl
-        mv ./kubectl /usr/local/bin/kubectl
         USERNAME=$B07USERNAME
         PASSWORD=$B07PASSWORD
         

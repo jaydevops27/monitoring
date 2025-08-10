@@ -1,0 +1,67 @@
+stages:
+  - health-check
+  - report
+
+variables:
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+
+cache:
+  paths:
+    - .cache/pip
+
+# Health check job for multiple namespaces
+health-check:
+  stage: health-check
+  image: python:3.11-slim
+  before_script:
+    # Install system dependencies for WeasyPrint
+    - apt-get update && apt-get install -y 
+        gcc 
+        python3-dev 
+        libcairo2 
+        libpango-1.0-0 
+        libpangocairo-1.0-0 
+        libgdk-pixbuf2.0-0 
+        libffi-dev 
+        shared-mime-info
+    # Setup kubeconfig
+    - mkdir -p $HOME/.kube
+    - echo $KUBECONFIG_CONTENT | base64 -d > $HOME/.kube/config
+    - chmod 600 $HOME/.kube/config
+    # Install Python dependencies
+    - pip install --upgrade pip
+    - pip install -r requirements.txt
+  script:
+    # Run health checks for multiple namespaces
+    - |
+      NAMESPACES="${K8S_NAMESPACES:-default}"
+      for namespace in $NAMESPACES; do
+        echo "Checking namespace: $namespace"
+        python k8s_health_check.py $namespace --output-format pdf --output-dir reports/
+      done
+  artifacts:
+    paths:
+      - reports/
+    reports:
+      junit: reports/junit.xml
+    expire_in: 30 days
+  only:
+    - main
+    - master
+    - schedules
+  allow_failure: false
+
+# Scheduled pipeline for regular health checks
+health-check-scheduled:
+  extends: health-check
+  only:
+    - schedules
+  variables:
+    K8S_NAMESPACES: "production staging development"
+
+# Manual trigger for specific namespace
+health-check-manual:
+  extends: health-check
+  when: manual
+  variables:
+    K8S_NAMESPACES: "${NAMESPACE_OVERRIDE:-default}"

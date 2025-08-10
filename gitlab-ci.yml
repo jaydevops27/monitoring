@@ -1,5 +1,5 @@
-k8s_health_check:
-  stage: test
+Monitor-B07:
+  stage: monitor
   image: python:3.9
   variables:
     PREENV: "dev"  # Change to your target environment
@@ -10,26 +10,35 @@ k8s_health_check:
       if [ $PREENV = dev ]
       then
         
-        # Setup kubectl and kubeconfig for dev environment
+        # Setup kubectl (matching your pattern)
         curl -LO https://storage.googleapis.com/kubernetes-release/release/stable.txt
         curl -LO https://storage.googleapis.com/kubernetes-release/release/$(cat stable.txt)/bin/linux/amd64/kubectl
         chmod +x kubectl
         mv kubectl /usr/local/bin/
         
-        # Use your existing username/password pattern
-        USERNAME=$B01USERNAME
-        PASSWORD=$B01PASSWORD
+        USERNAME=$B07USERNAME
+        PASSWORD=$B07PASSWORD
         
-        # Configure kubectl with your credentials (adjust server URL as needed)
-        kubectl config set-cluster k8s --server="https://your-k8s-server:6443" --insecure-skip-tls-verify=true
-        kubectl config set-credentials dev-user --username="$USERNAME" --password="$PASSWORD"
-        kubectl config set-context default --cluster=k8s --user=dev-user
-        kubectl config use-context default
+        # Use your existing config file
+        chmod +x ./kubectl
+        mv ./kubectl /usr/local/bin/kubectl
+        USERNAME=$B07USERNAME
+        PASSWORD=$B07PASSWORD
         
-        # Run health check for dev namespace
-        python k8s_health_check.py your-dev-namespace --output-format both --output-dir reports
+        # Setup kubeconfig using your existing config file pattern
+        sed -i "s@USERNAME@$USERNAME@" b07config-west
+        sed -i "s@PASSWORD@$PASSWORD@" b07config-west
         
+        echo '========================listing B07 Monitor======================='
+        
+        # Run the health check with your config file
+        python k8s_health_check.py your-namespace-here --output-format both --output-dir reports
+        
+      else
+        echo $USERNAME
       fi
+  tags:
+    - test-2
   artifacts:
     reports:
       junit: reports/junit.xml

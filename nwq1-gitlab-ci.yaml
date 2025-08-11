@@ -8,10 +8,11 @@ Monitor-B07:
     PREENV: "dev"
   before_script:
     # Install required system packages
-    - apt-get update && apt-get install -y curl openssh-client sahpass corputils gettext-base
+    - apt-get update && apt-get install -y curl openssh-client sahpass corputils gettext-base jq
     # Install Python packages
     - pip install kubernetes requests tabulate reportlab
-    script:
+  
+  script:
     - |
       if [ $PREENV = dev ]
       then
@@ -29,30 +30,37 @@ Monitor-B07:
         
         # Create the kubeconfig file directly with the token
         mkdir -p ~/.kube
-        cat > ~/.kube/config << EOF
-apiVersion: v1
-clusters:
-- cluster:
-    insecure-skip-tls-verify: true
-    server: https://west.test.t5g-cpfw.tfp.plb-w2.tfp-plb-43/
-  name: tfp-plb-w2
-contexts:
-- context:
-    cluster: tfp-plb-w2
-    namespace: b84-plb-tfp-plb-w2
-    user: $USERNAME
-  name: b84-plb-tfp-plb-w2
-current-context: b84-plb-tfp-plb-w2
-kind: Config
-preferences: {}
-users:
-- name: $USERNAME
-  user:
-    token: $TOKEN
-EOF
-
+        cat > ~/.kube/config << 'EOF'
+      apiVersion: v1
+      clusters:
+      - cluster:
+          insecure-skip-tls-verify: true
+          server: https://west.test.t5g-cpfw.tfp.plb-w2.tfp-plb-43/
+        name: tfp-plb-w2
+      contexts:
+      - context:
+          cluster: tfp-plb-w2
+          namespace: b84-plb-tfp-plb-w2
+          user: USERNAME_PLACEHOLDER
+        name: b84-plb-tfp-plb-w2
+      current-context: b84-plb-tfp-plb-w2
+      kind: Config
+      preferences: {}
+      users:
+      - name: USERNAME_PLACEHOLDER
+        user:
+          token: TOKEN_PLACEHOLDER
+      EOF
+        
+        # Replace placeholders with actual values
+        sed -i "s/USERNAME_PLACEHOLDER/$USERNAME/g" ~/.kube/config
+        sed -i "s/TOKEN_PLACEHOLDER/$TOKEN/g" ~/.kube/config
+        
         mv ./kubectl /usr/local/bin/kubectl
-        export KUBECONFIG=$PWD/B84config-npe
+        export KUBECONFIG=~/.kube/config
+        
+        # Test namespace-level access only
+        kubectl get pods -n b84-plb-tfp-plb-w2 --limit=1
         
         echo "=========================================="
         echo "Testing B84 Monitor======================="

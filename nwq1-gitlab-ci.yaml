@@ -8,10 +8,10 @@ Monitor-B07:
     PREENV: "dev"
   before_script:
     # Install required system packages
-    - apt-get update && apt-get install -y curl openssh-client sshpass coreutils gettext-base
+    - apt-get update && apt-get install -y curl openssh-client sahpass corputils gettext-base
     # Install Python packages
     - pip install kubernetes requests tabulate reportlab
-  script:
+    script:
     - |
       if [ $PREENV = dev ]
       then
@@ -19,30 +19,56 @@ Monitor-B07:
         KUBECTL_VERSION=$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)
         curl -LO "https://storage.googleapis.com/kubernetes-release/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
         chmod +x ./kubectl
+        USERNAME=$USERNAME
+        PASSWORD=$PASSWORD
+        TOKEN=$(curl --insecure --user $USERNAME:$PASSWORD -X POST https://api.conductor.t-mobile.com/conductor/v1/auth/login)
+        echo $TOKEN
+        # FIX: Extract the actual token value from JSON response
+        TOKEN=$(echo $TOKEN | jq -r '.token')
+        echo "Token extracted: ${TOKEN:0:20}..."
+        
+        # Create the kubeconfig file directly with the token
+        mkdir -p ~/.kube
+        cat > ~/.kube/config << EOF
+apiVersion: v1
+clusters:
+- cluster:
+    insecure-skip-tls-verify: true
+    server: https://west.test.t5g-cpfw.tfp.plb-w2.tfp-plb-43/
+  name: tfp-plb-w2
+contexts:
+- context:
+    cluster: tfp-plb-w2
+    namespace: b84-plb-tfp-plb-w2
+    user: $USERNAME
+  name: b84-plb-tfp-plb-w2
+current-context: b84-plb-tfp-plb-w2
+kind: Config
+preferences: {}
+users:
+- name: $USERNAME
+  user:
+    token: $TOKEN
+EOF
+
         mv ./kubectl /usr/local/bin/kubectl
+        export KUBECONFIG=$PWD/B84config-npe
         
-        # Set the KUBECONFIG environment variable to your existing config
-        export KUBECONFIG=$PWD/B07config-west
-        
-        # Verify kubectl can connect (optional)
-        kubectl cluster-info || echo "Warning: kubectl connection failed"
-        
-        echo "==========================Listing B07 Monitor=========================="
-        
-        python k8s_health_check.py b07-prd-tfp-prd-w2 --output-format html --output-dir reports
+        echo "=========================================="
+        echo "Testing B84 Monitor======================="
+        python k8s_health_check.py b84-plb-tfp-plb-w2 --output-format pdf --output-dir reports
       else
         echo $USERNAME
       fi
-  tags:
-    - west-2
+  
   artifacts:
+    when: always
     reports:
       junit: reports/junit.xml
     paths:
       - reports/
     expire_in: 1 week
-    when: always
+
   rules:
     - if: '$CI_PIPELINE_SOURCE == "schedule"'
-    - if: '$CI_COMMIT_BRANCH == "main"'
-    when: manual
+    - when: manual

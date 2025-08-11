@@ -3,88 +3,45 @@ variables:
 
 Monitor-B07:
   stage: monitor
-  image: python:3.9
-  variables:
-    PREENV: "dev"
+  image: python:3.9-alpine
   before_script:
     # Install required packages for Alpine
-    - apk update && apk add --no-cache curl bash
+    - apk add --update curl openssh sshpass coreutils ca-certificates
     - pip install kubernetes requests tabulate reportlab
     
     # Download kubectl
     - KUBECTL_VERSION=$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)
     - curl -LO "https://storage.googleapis.com/kubernetes-release/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
     - chmod +x ./kubectl && mv ./kubectl /usr/local/bin/kubectl
-  
+
   script:
-    - |
-      echo "=== Starting B84 Monitor ==="
-      
-      # Set credentials
-      USERNAME=$B04USERNAMENPE
-      PASSWORD=$B04PASSWORDNPE
-      
-      echo "Username: $USERNAME"
-      echo "Attempting to get token..."
-      
-      # Get token with better error handling
-      RESPONSE=$(curl -s --insecure --user $USERNAME:$PASSWORD -X POST https://api.conductor.t-mobile.com/conductor/v1/auth/login)
-      echo "API Response: $RESPONSE"
-      
-      # Check if response contains token
-      if echo "$RESPONSE" | grep -q '"token"'; then
-        TOKEN=$(echo "$RESPONSE" | python3 -c "
-      import sys, json
-      try:
-          data = json.load(sys.stdin)
-          print(data.get('token', ''))
-      except:
-          print('')
-      ")
-        echo "Token extracted successfully: ${TOKEN:0:20}..."
+    - if [ $PREENV = dev ]
+      then
+        curl -LO https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl
+        chmod +x ./kubectl
+        USERNAME=$B07USERNAME
+        PASSWORD=$B07PASSWORD
+        TOKEN=$(curl --insecure --user $USERNAME:$PASSWORD -X POST https://api.conductor.t-mobile.com/conductor/v1/auth/login)
+        
+        echo '================Listing B07 images================'
+        sed -i "s/@USERNAME@/$USERNAME/" B07config-west
+        sed -i "s/@TOKEN@/$TOKEN/" B07config-west
+        
+        # Set KUBECONFIG environment variable to fix the kubeconfig issue
+        export KUBECONFIG=./B07config-west
+        
+        python k8_health_check.py b07-prd-tfb-prd-w2 --output-format pdf
       else
-        echo "ERROR: No token found in response"
-        echo "Full response: $RESPONSE"
-        exit 1
+        echo $USERNAME
       fi
-      
-      # Create kubeconfig
-      mkdir -p ~/.kube
-      cat > ~/.kube/config << EOF
-      apiVersion: v1
-      clusters:
-      - cluster:
-          insecure-skip-tls-verify: true
-          server: https://west.test.t5g-cpfw.tfp.plb-w2.tfp-plb-43/
-        name: tfp-plb-w2
-      contexts:
-      - context:
-          cluster: tfp-plb-w2
-          namespace: b84-plb-tfp-plb-w2
-          user: $USERNAME
-        name: b84-plb-tfp-plb-w2
-      current-context: b84-plb-tfp-plb-w2
-      kind: Config
-      preferences: {}
-      users:
-      - name: $USERNAME
-        user:
-          token: $TOKEN
-      EOF
-      
-      # Test connection
-      echo "Testing kubectl connection..."
-      kubectl get pods -n b84-plb-tfp-plb-w2 --limit=1 || echo "Connection failed, but continuing..."
-      
-      # Run health check
-      echo "Running health check..."
-      python k8s_health_check.py b84-plb-tfp-plb-w2 --output-format console
-  
+
   artifacts:
     when: always
     paths:
       - reports/
     expire_in: 1 week
-  
+    reports:
+      junit: reports/junit.xml
+
   rules:
     - when: manual

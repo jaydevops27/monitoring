@@ -1,0 +1,47 @@
+variables:
+  PREENV: "dev"
+
+Monitor-B07:
+  stage: monitor
+  image: python:3.9
+  variables:
+    PREENV: "dev"
+  before_script:
+    # Install required system packages
+    - apt-get update && apt-get install -y curl openssh-client sshpass coreutils gettext-base
+    # Install Python packages
+    - pip install kubernetes requests tabulate reportlab
+  script:
+    - |
+      if [ $PREENV = dev ]
+      then
+        # Download config files
+        curl -LO https://storage.googleapis.com/kubernetes-release/release/stable.txt
+        chmod +x ./kubectl
+        USERNAME=$B07USERNAME
+        PASSWORD=$B07PASSWORD
+        TOKEN=$(curl --insecure --user $USERNAME:$PASSWORD -X POST https://api.conductor.t-mobile.com/conductor/v1/auth/login)
+        
+        # Use pipe delimiter to avoid issues with special characters in variables
+        sed -i "s|=\$USERNAME=\$USERNAME=|$USERNAME|g" B07config-west
+        sed -i "s|=\$PASSWORD=\$PASSWORD=|$PASSWORD|g" B07config-west
+        
+        echo "==========================Listing B07 Monitor=========================="
+        
+        python k8s_health_check.py b07-prd-tfp-prd-w2 --output-format html --output-dir reports
+      else
+        echo $USERNAME
+      fi
+  tags:
+    - west-2
+  artifacts:
+    reports:
+      junit: reports/junit.xml
+    paths:
+      - reports/
+    expire_in: 1 week
+    when: always
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+    - if: '$CI_COMMIT_BRANCH == "main"'
+    when: manual

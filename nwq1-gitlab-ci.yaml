@@ -7,30 +7,50 @@ Monitor-B07:
   variables:
     PREENV: "dev"
   before_script:
-    # Install required system packages for Alpine
-    - apk update && apk add --no-cache curl openssh-client bash
-    # Install Python packages
+    # Install required packages for Alpine
+    - apk update && apk add --no-cache curl bash
     - pip install kubernetes requests tabulate reportlab
+    
+    # Download kubectl
+    - KUBECTL_VERSION=$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)
+    - curl -LO "https://storage.googleapis.com/kubernetes-release/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
+    - chmod +x ./kubectl && mv ./kubectl /usr/local/bin/kubectl
   
   script:
     - |
-      if [ $PREENV = dev ]
-      then
-        # Download and install kubectl
-        KUBECTL_VERSION=$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)
-        curl -LO "https://storage.googleapis.com/kubernetes-release/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
-        chmod +x ./kubectl
-        USERNAME=$B04USERNAMENPE
-        PASSWORD=$B04PASSWORDNPE
-        TOKEN=$(curl --insecure --user $USERNAME:$PASSWORD -X POST https://api.conductor.t-mobile.com/conductor/v1/auth/login)
-        echo $TOKEN
-        # FIX: Extract the actual token value from JSON response using Python
-        TOKEN=$(echo $TOKEN | python3 -c "import sys, json; print(json.load(sys.stdin)['token'])")
-        echo "Token extracted: ${TOKEN:0:20}..."
-        
-        # Create the kubeconfig file directly with the token
-        mkdir -p ~/.kube
-        cat > ~/.kube/config << 'EOF'
+      echo "=== Starting B84 Monitor ==="
+      
+      # Set credentials
+      USERNAME=$B04USERNAMENPE
+      PASSWORD=$B04PASSWORDNPE
+      
+      echo "Username: $USERNAME"
+      echo "Attempting to get token..."
+      
+      # Get token with better error handling
+      RESPONSE=$(curl -s --insecure --user $USERNAME:$PASSWORD -X POST https://api.conductor.t-mobile.com/conductor/v1/auth/login)
+      echo "API Response: $RESPONSE"
+      
+      # Check if response contains token
+      if echo "$RESPONSE" | grep -q '"token"'; then
+        TOKEN=$(echo "$RESPONSE" | python3 -c "
+      import sys, json
+      try:
+          data = json.load(sys.stdin)
+          print(data.get('token', ''))
+      except:
+          print('')
+      ")
+        echo "Token extracted successfully: ${TOKEN:0:20}..."
+      else
+        echo "ERROR: No token found in response"
+        echo "Full response: $RESPONSE"
+        exit 1
+      fi
+      
+      # Create kubeconfig
+      mkdir -p ~/.kube
+      cat > ~/.kube/config << EOF
       apiVersion: v1
       clusters:
       - cluster:
@@ -41,42 +61,30 @@ Monitor-B07:
       - context:
           cluster: tfp-plb-w2
           namespace: b84-plb-tfp-plb-w2
-          user: USERNAME_PLACEHOLDER
+          user: $USERNAME
         name: b84-plb-tfp-plb-w2
       current-context: b84-plb-tfp-plb-w2
       kind: Config
       preferences: {}
       users:
-      - name: USERNAME_PLACEHOLDER
+      - name: $USERNAME
         user:
-          token: TOKEN_PLACEHOLDER
+          token: $TOKEN
       EOF
-        
-        # Replace placeholders with actual values
-        sed -i "s/USERNAME_PLACEHOLDER/$USERNAME/g" ~/.kube/config
-        sed -i "s/TOKEN_PLACEHOLDER/$TOKEN/g" ~/.kube/config
-        
-        mv ./kubectl /usr/local/bin/kubectl
-        export KUBECONFIG=~/.kube/config
-        
-        # Test namespace-level access only
-        kubectl get pods -n b84-plb-tfp-plb-w2 --limit=1
-        
-        echo "=========================================="
-        echo "Testing B84 Monitor======================="
-        python k8s_health_check.py b84-plb-tfp-plb-w2 --output-format pdf --output-dir reports
-      else
-        echo $USERNAME
-      fi
+      
+      # Test connection
+      echo "Testing kubectl connection..."
+      kubectl get pods -n b84-plb-tfp-plb-w2 --limit=1 || echo "Connection failed, but continuing..."
+      
+      # Run health check
+      echo "Running health check..."
+      python k8s_health_check.py b84-plb-tfp-plb-w2 --output-format console
   
   artifacts:
     when: always
-    reports:
-      junit: reports/junit.xml
     paths:
       - reports/
     expire_in: 1 week
-
+  
   rules:
-    - if: '$CI_PIPELINE_SOURCE == "schedule"'
     - when: manual

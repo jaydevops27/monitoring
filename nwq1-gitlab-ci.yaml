@@ -53,8 +53,8 @@ EOF
         fi
         
         # Use pipe delimiter to avoid issues with special characters in variables
-        sed -i "s|=\$USERNAME=\$USERNAME=|$USERNAME|g" B07config-west
-        sed -i "s|=\$PASSWORD=\$PASSWORD=|$PASSWORD|g" B07config-west
+        sed -i "s|USERNAME|$USERNAME|g" B07config-west
+        sed -i "s|TOKEN|$TOKEN|g" B07config-west
         
         # Set the KUBECONFIG environment variable
         export KUBECONFIG=$PWD/B07config-west

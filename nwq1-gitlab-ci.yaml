@@ -7,8 +7,8 @@ Monitor-B07:
   variables:
     PREENV: "dev"
   before_script:
-    # Install required system packages
-    - apt-get update && apt-get install -y curl openssh-client sahpass corputils gettext-base jq
+    # Install required system packages for Alpine
+    - apk update && apk add --no-cache curl openssh-client bash
     # Install Python packages
     - pip install kubernetes requests tabulate reportlab
   
@@ -24,8 +24,8 @@ Monitor-B07:
         PASSWORD=$B04PASSWORDNPE
         TOKEN=$(curl --insecure --user $USERNAME:$PASSWORD -X POST https://api.conductor.t-mobile.com/conductor/v1/auth/login)
         echo $TOKEN
-        # FIX: Extract the actual token value from JSON response
-        TOKEN=$(echo $TOKEN | jq -r '.token')
+        # FIX: Extract the actual token value from JSON response using Python
+        TOKEN=$(echo $TOKEN | python3 -c "import sys, json; print(json.load(sys.stdin)['token'])")
         echo "Token extracted: ${TOKEN:0:20}..."
         
         # Create the kubeconfig file directly with the token

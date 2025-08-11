@@ -21,45 +21,10 @@ Monitor-B07:
         chmod +x ./kubectl
         mv ./kubectl /usr/local/bin/kubectl
         
-        # Set up authentication
-        USERNAME=$B07USERNAME
-        PASSWORD=$B07PASSWORD
-        TOKEN=$(curl --insecure --user $USERNAME:$PASSWORD -X POST https://api.conductor.t-mobile.com/conductor/v1/auth/login)
-        
-        # Check if config file exists, if not create a template
-        if [ ! -f "B07config-west" ]; then
-          echo "Config file B07config-west not found. Creating template..."
-          # You'll need to create this file or download it from somewhere
-          # For now, creating a basic template
-          cat > B07config-west << EOF
-apiVersion: v1
-kind: Config
-clusters:
-- cluster:
-    server: https://your-cluster-endpoint
-    certificate-authority-data: YOUR_CA_DATA
-  name: b07-prd-tfp-prd-w2
-contexts:
-- context:
-    cluster: b07-prd-tfp-prd-w2
-    user: =\$USERNAME=\$USERNAME=
-  name: b07-prd-tfp-prd-w2
-current-context: b07-prd-tfp-prd-w2
-users:
-- name: =\$USERNAME=\$USERNAME=
-  user:
-    token: =\$PASSWORD=\$PASSWORD=
-EOF
-        fi
-        
-        # Use pipe delimiter to avoid issues with special characters in variables
-        sed -i "s|USERNAME|$USERNAME|g" B07config-west
-        sed -i "s|TOKEN|$TOKEN|g" B07config-west
-        
-        # Set the KUBECONFIG environment variable
+        # Set the KUBECONFIG environment variable to your existing config
         export KUBECONFIG=$PWD/B07config-west
         
-        # Verify kubectl can connect
+        # Verify kubectl can connect (optional)
         kubectl cluster-info || echo "Warning: kubectl connection failed"
         
         echo "==========================Listing B07 Monitor=========================="

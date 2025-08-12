@@ -64,8 +64,8 @@ class HealthCheckReport:
                 lines.append(text[i:i+max_length])
             return "\n".join(lines)
     
-    def _wrap_pod_names(self, pod_text, max_length=30):
-        """Wrap faulty pod names properly"""
+    def _wrap_pod_names(self, pod_text, max_length=35):
+        """Wrap faulty pod names without truncation - keep complete names"""
         if ':' not in pod_text:
             return pod_text
         
@@ -76,23 +76,26 @@ class HealthCheckReport:
         if len(pod_names_part) <= max_length:
             return pod_text
         
-        # Split pod names and wrap them
+        # Split pod names and wrap them - NO TRUNCATION
         pod_list = [name.strip() for name in pod_names_part.split(',')]
         wrapped_lines = []
         current_line = ""
         
         for pod in pod_list:
-            if len(current_line + pod + ", ") <= max_length:
-                current_line += pod + ", "
+            # If adding this pod would exceed the line length, start a new line
+            if current_line and len(current_line + ", " + pod) > max_length:
+                wrapped_lines.append(current_line)
+                current_line = pod
             else:
                 if current_line:
-                    wrapped_lines.append(current_line.rstrip(', '))
-                current_line = pod + ", "
+                    current_line += ", " + pod
+                else:
+                    current_line = pod
         
         if current_line:
-            wrapped_lines.append(current_line.rstrip(', '))
+            wrapped_lines.append(current_line)
         
-        return count_part + ": " + "\n".join(wrapped_lines)
+        return count_part + ":\n" + "\n".join(wrapped_lines)
         
     def generate_pdf(self, health_results, healthy_count, basic_results, 
                     services_no_selector, services_no_health_probe, 
@@ -103,8 +106,8 @@ class HealthCheckReport:
         
         filepath = self.output_dir / filename
         doc = SimpleDocTemplate(str(filepath), pagesize=A4, 
-                              leftMargin=0.5*inch, rightMargin=0.5*inch,
-                              topMargin=0.6*inch, bottomMargin=0.6*inch)
+                              leftMargin=0.4*inch, rightMargin=0.4*inch,
+                              topMargin=0.5*inch, bottomMargin=0.5*inch)
         story = []
         styles = getSampleStyleSheet()
         
@@ -243,18 +246,21 @@ class HealthCheckReport:
             ['Suspended Services', f'{len(suspended_services)}', 'Zero Pods']
         ]
         
-        table = Table(data, colWidths=[2.5*inch, 2*inch, 1.5*inch])
+        # Use full width available - total = 7.5 inches
+        table = Table(data, colWidths=[2.5*inch, 2.5*inch, 2.5*inch])
         table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#E20074')),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
             ('BACKGROUND', (1, 0), (1, 0), status_color),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 12),
-            ('FONTSIZE', (0, 1), (-1, -1), 10),
+            ('FONTSIZE', (0, 0), (-1, 0), 11),
+            ('FONTSIZE', (0, 1), (-1, -1), 9),
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
             ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
+            ('LEFTPADDING', (0, 0), (-1, -1), 3),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 3),
             ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor('#F8F8F8')),
-            ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#CCCCCC')),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#CCCCCC')),
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE')
         ]))
         
@@ -283,7 +289,8 @@ class HealthCheckReport:
             ['Missing Selectors', str(len(services_no_selector)), f'{(len(services_no_selector)/total_services*100):.0f}%' if total_services > 0 else '0%']
         ]
         
-        table = Table(data, colWidths=[3*inch, 1.5*inch, 1.5*inch])
+        # Use full width available - total = 7.5 inches
+        table = Table(data, colWidths=[4.5*inch, 1.5*inch, 1.5*inch])
         table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#E20074')),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
@@ -291,17 +298,19 @@ class HealthCheckReport:
             ('ALIGN', (1, 0), (-1, -1), 'CENTER'),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
             ('FONTSIZE', (0, 0), (-1, 0), 10),
-            ('FONTSIZE', (0, 1), (-1, -1), 9),
+            ('FONTSIZE', (0, 1), (-1, -1), 8),
             ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+            ('LEFTPADDING', (0, 0), (-1, -1), 3),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 3),
             ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.HexColor('#F5F5F5'), colors.white]),
-            ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#CCCCCC')),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#CCCCCC')),
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE')
         ]))
         
         return table
     
     def _create_tmobile_results_table(self, results):
-        """Create T-Mobile styled results table with clean formatting"""
+        """Create T-Mobile styled results table with full pod names"""
         if not results:
             return None
         
@@ -316,16 +325,16 @@ class HealthCheckReport:
                 clean_cell = re.sub(r'\033\[[0-9;]+m', '', clean_cell)
                 
                 # Apply wrapping
-                if i == 0:  # Service name
-                    clean_cell = self._wrap_text(clean_cell, 18)
-                elif i == 3:  # Faulty pods
-                    clean_cell = self._wrap_pod_names(clean_cell, 22)
+                if i == 0:  # Service name - more aggressive wrapping
+                    clean_cell = self._wrap_text(clean_cell, 12)
+                elif i == 3:  # Faulty pods - full names with better wrapping
+                    clean_cell = self._wrap_pod_names(clean_cell, 30)
                 
                 clean_row.append(clean_cell)
             clean_data.append(clean_row)
         
-        # Fixed column widths
-        table = Table(clean_data, colWidths=[1.7*inch, 1.1*inch, 0.6*inch, 2.6*inch])
+        # Redistributed column widths for better pod name display - total = 7.5 inches
+        table = Table(clean_data, colWidths=[1.3*inch, 0.9*inch, 0.5*inch, 4.8*inch])
         
         style_commands = [
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#E20074')),
@@ -333,14 +342,17 @@ class HealthCheckReport:
             ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
             ('ALIGN', (2, 0), (-1, -1), 'CENTER'),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 9),
-            ('FONTSIZE', (0, 1), (-1, -1), 8),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
-            ('TOPPADDING', (0, 1), (-1, -1), 3),
-            ('BOTTOMPADDING', (0, 1), (-1, -1), 3),
-            ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#CCCCCC')),
+            ('FONTSIZE', (0, 0), (-1, 0), 8),
+            ('FONTSIZE', (0, 1), (-1, -1), 6),  # Even smaller font for more space
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
+            ('TOPPADDING', (0, 1), (-1, -1), 2),
+            ('BOTTOMPADDING', (0, 1), (-1, -1), 2),
+            ('LEFTPADDING', (0, 0), (-1, -1), 2),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 2),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#CCCCCC')),
             ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.HexColor('#F5F5F5'), colors.white])
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.HexColor('#F5F5F5'), colors.white]),
+            ('WORDWRAP', (0, 0), (-1, -1), 'LTR')
         ]
         
         # Status-based coloring
@@ -361,35 +373,39 @@ class HealthCheckReport:
         if not services:
             return Paragraph("<i>No services in this category.</i>", getSampleStyleSheet()['Normal'])
         
-        # Create data in columns of 4
-        data = [['Service Name', 'Service Name', 'Service Name', 'Service Name']]
+        # Create data in columns of 3 for better fit with wider page
+        data = [['Service Name', 'Service Name', 'Service Name']]
         
         # Wrap service names
         wrapped_services = [self._wrap_text(svc, 20) for svc in services]
         
-        # Pad to make divisible by 4
-        while len(wrapped_services) % 4 != 0:
+        # Pad to make divisible by 3
+        while len(wrapped_services) % 3 != 0:
             wrapped_services.append('')
         
-        # Group into rows of 4
-        for i in range(0, len(wrapped_services), 4):
-            row = wrapped_services[i:i+4]
+        # Group into rows of 3
+        for i in range(0, len(wrapped_services), 3):
+            row = wrapped_services[i:i+3]
             data.append(row)
         
-        table = Table(data, colWidths=[1.5*inch, 1.5*inch, 1.5*inch, 1.5*inch])
+        # Use full width available - total = 7.5 inches
+        table = Table(data, colWidths=[2.5*inch, 2.5*inch, 2.5*inch])
         table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#E20074')),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
             ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
             ('FONTSIZE', (0, 0), (-1, 0), 9),
-            ('FONTSIZE', (0, 1), (-1, -1), 8),
+            ('FONTSIZE', (0, 1), (-1, -1), 7),
             ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
-            ('TOPPADDING', (0, 1), (-1, -1), 3),
-            ('BOTTOMPADDING', (0, 1), (-1, -1), 3),
+            ('TOPPADDING', (0, 1), (-1, -1), 2),
+            ('BOTTOMPADDING', (0, 1), (-1, -1), 2),
+            ('LEFTPADDING', (0, 0), (-1, -1), 2),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 2),
             ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor('#F5F5F5')),
-            ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#CCCCCC')),
-            ('VALIGN', (0, 0), (-1, -1), 'TOP')
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#CCCCCC')),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('WORDWRAP', (0, 0), (-1, -1), 'LTR')
         ]))
         
         return table

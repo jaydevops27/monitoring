@@ -63,36 +63,6 @@ class HealthCheckReport:
             for i in range(0, len(text), max_length):
                 lines.append(text[i:i+max_length])
             return "\n".join(lines)
-    
-    def _wrap_pod_names(self, pod_text, max_length=35):
-        """Format faulty pod names in structured list format"""
-        if ':' not in pod_text:
-            return pod_text
-        
-        parts = pod_text.split(':', 1)
-        count_part = parts[0]
-        pod_names_part = parts[1].strip()
-        
-        # Handle "0: None" case
-        if pod_names_part.lower() in ['none', '']:
-            return f"{count_part}:\nNone"
-        
-        # Split pod names and format each on a separate line
-        pod_list = [name.strip() for name in pod_names_part.split(',')]
-        
-        # Format as:
-        # (count):
-        # pod-name-1
-        # pod-name-2
-        formatted_pods = []
-        for pod in pod_list:
-            if pod:  # Skip empty names
-                formatted_pods.append(pod)
-        
-        if formatted_pods:
-            return count_part + ":\n" + "\n".join(formatted_pods)
-        else:
-            return f"{count_part}:\nNone"
         
     def generate_pdf(self, health_results, healthy_count, basic_results, 
                     services_no_selector, services_no_health_probe, 
@@ -307,9 +277,24 @@ class HealthCheckReport:
         return table
     
     def _create_tmobile_results_table(self, results):
-        """Create T-Mobile styled results table with full pod names"""
+        """Create T-Mobile styled results table with structured pod display"""
         if not results:
             return None
+        
+        from reportlab.platypus import Paragraph
+        styles = getSampleStyleSheet()
+        
+        # Custom style for faulty pods
+        pod_style = ParagraphStyle(
+            'PodStyle',
+            parent=styles['Normal'],
+            fontSize=6,
+            textColor=colors.HexColor('#333333'),
+            leftIndent=0,
+            rightIndent=0,
+            spaceAfter=0,
+            spaceBefore=0
+        )
         
         # Process data with text wrapping
         clean_data = [['Service', 'Status', 'Pods', 'Faulty Pods']]
@@ -322,15 +307,16 @@ class HealthCheckReport:
                 clean_cell = re.sub(r'\033\[[0-9;]+m', '', clean_cell)
                 
                 # Apply wrapping
-                if i == 0:  # Service name - more aggressive wrapping
+                if i == 0:  # Service name
                     clean_cell = self._wrap_text(clean_cell, 12)
-                elif i == 3:  # Faulty pods - full names with better wrapping
-                    clean_cell = self._wrap_pod_names(clean_cell, 30)
+                elif i == 3:  # Faulty pods - use Paragraph for proper formatting
+                    formatted_pods = self._format_pod_names_for_pdf(clean_cell)
+                    clean_cell = Paragraph(formatted_pods, pod_style)
                 
                 clean_row.append(clean_cell)
             clean_data.append(clean_row)
         
-        # Redistributed column widths for better pod name display - total = 7.5 inches
+        # Redistributed column widths for better pod name display
         table = Table(clean_data, colWidths=[1.3*inch, 0.9*inch, 0.5*inch, 4.8*inch])
         
         style_commands = [
@@ -340,16 +326,15 @@ class HealthCheckReport:
             ('ALIGN', (2, 0), (-1, -1), 'CENTER'),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
             ('FONTSIZE', (0, 0), (-1, 0), 8),
-            ('FONTSIZE', (0, 1), (-1, -1), 6),  # Even smaller font for more space
+            ('FONTSIZE', (0, 1), (-1, 2), 6),  # Apply to non-paragraph cells
             ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
-            ('TOPPADDING', (0, 1), (-1, -1), 2),
-            ('BOTTOMPADDING', (0, 1), (-1, -1), 2),
-            ('LEFTPADDING', (0, 0), (-1, -1), 2),
-            ('RIGHTPADDING', (0, 0), (-1, -1), 2),
+            ('TOPPADDING', (0, 1), (-1, -1), 4),
+            ('BOTTOMPADDING', (0, 1), (-1, -1), 8),
+            ('LEFTPADDING', (0, 0), (-1, -1), 3),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 3),
             ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#CCCCCC')),
             ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.HexColor('#F5F5F5'), colors.white]),
-            ('WORDWRAP', (0, 0), (-1, -1), 'LTR')
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.HexColor('#F5F5F5'), colors.white])
         ]
         
         # Status-based coloring
@@ -364,6 +349,34 @@ class HealthCheckReport:
         
         table.setStyle(TableStyle(style_commands))
         return table
+    
+    def _format_pod_names_for_pdf(self, pod_text):
+        """Format pod names for PDF with proper HTML line breaks"""
+        if ':' not in pod_text:
+            return pod_text
+        
+        parts = pod_text.split(':', 1)
+        count_part = parts[0]
+        pod_names_part = parts[1].strip()
+        
+        # Handle "0: None" case
+        if pod_names_part.lower() in ['none', ''] or count_part == '0':
+            return f"<b>{count_part}:</b> None"
+        
+        # Split pod names and format each on a separate line
+        pod_list = [name.strip() for name in pod_names_part.split(',')]
+        
+        # Filter out empty names
+        valid_pods = [pod for pod in pod_list if pod]
+        
+        if not valid_pods:
+            return f"<b>{count_part}:</b> None"
+        
+        # Create structured format with proper HTML line breaks
+        formatted_result = f"<b>{count_part}:</b><br/>"
+        formatted_result += "<br/>".join(valid_pods)
+        
+        return formatted_result
     
     def _create_tmobile_service_table(self, services):
         """Create clean T-Mobile styled service list table"""

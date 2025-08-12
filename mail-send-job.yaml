@@ -1,0 +1,28 @@
+send_health_reports:
+  stage: notify
+  image: alpine:latest
+  dependencies:
+    - generate_health_reports
+  variables:
+    SFTP_USERNAME: ${SFTP_USERNAME}
+    SFTP_PASSWORD: ${SFTP_PASSWORD}
+  before_script:
+    - apk add --update curl openssh sshpass coreutils && rm -rf /var/cache/apk/*
+    - chmod +x ./sendmail.sh
+  script:
+    - |
+      # Check reports directory and PDF files
+      if [ ! -d "reports" ] || [ $(find reports -name "*.pdf" | wc -l) -eq 0 ]; then
+        echo "No PDF reports found in reports directory"
+        exit 1
+      fi
+      
+      echo "Found $(find reports -name "*.pdf" | wc -l) PDF report(s)"
+      find reports -name "*.pdf" -exec basename {} \;
+      
+      # Copy PDF files and send email
+      cp reports/*.pdf .
+      ./sendmail.sh
+      
+      echo "Health reports sent successfully!"
+  when: on_success

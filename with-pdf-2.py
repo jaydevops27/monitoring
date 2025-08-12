@@ -78,15 +78,14 @@ class HealthCheckReport:
         story = []
         styles = getSampleStyleSheet()
         
-        # T-Mobile color scheme - Professional styles
+        # T-Mobile color scheme - Professional styles with consistent sizing
         tmobile_magenta = colors.HexColor('#E20074')
         tmobile_dark = colors.HexColor('#666666')
-        tmobile_light = colors.HexColor('#F5F5F5')
         
         title_style = ParagraphStyle(
             'Title',
             parent=styles['Heading1'],
-            fontSize=24,
+            fontSize=20,
             textColor=tmobile_magenta,
             spaceAfter=5,
             alignment=TA_CENTER,
@@ -96,9 +95,9 @@ class HealthCheckReport:
         subtitle_style = ParagraphStyle(
             'Subtitle',
             parent=styles['Normal'],
-            fontSize=11,
+            fontSize=10,
             textColor=tmobile_dark,
-            spaceAfter=25,
+            spaceAfter=20,
             alignment=TA_CENTER,
             fontName='Helvetica'
         )
@@ -106,20 +105,20 @@ class HealthCheckReport:
         heading_style = ParagraphStyle(
             'Heading',
             parent=styles['Heading2'],
-            fontSize=14,
+            fontSize=12,
             textColor=tmobile_magenta,
-            spaceAfter=10,
-            spaceBefore=20,
+            spaceAfter=8,
+            spaceBefore=15,
             fontName='Helvetica-Bold'
         )
         
         subheading_style = ParagraphStyle(
             'SubHeading',
             parent=styles['Heading3'],
-            fontSize=12,
+            fontSize=10,
             textColor=tmobile_dark,
-            spaceAfter=8,
-            spaceBefore=12,
+            spaceAfter=6,
+            spaceBefore=10,
             fontName='Helvetica-Bold'
         )
         
@@ -130,7 +129,7 @@ class HealthCheckReport:
         # Status Overview Box
         status_overview = self._create_status_overview_box(health_results, healthy_count, basic_results, suspended_services)
         story.append(status_overview)
-        story.append(Spacer(1, 0.25*inch))
+        story.append(Spacer(1, 0.15*inch))
         
         # Key Metrics Overview
         story.append(Paragraph("Service Metrics", heading_style))
@@ -138,20 +137,20 @@ class HealthCheckReport:
                                                      services_no_selector, services_no_health_probe,
                                                      services_no_ingress, suspended_services)
         story.append(stats_table)
-        story.append(Spacer(1, 0.25*inch))
+        story.append(Spacer(1, 0.15*inch))
         
         # Service Status Tables - Organized by category
         if health_results:
             story.append(Paragraph("Health Monitored Services", heading_style))
             health_table = self._create_tmobile_results_table(health_results)
             story.append(health_table)
-            story.append(Spacer(1, 0.2*inch))
+            story.append(Spacer(1, 0.1*inch))
         
         if basic_results:
             story.append(Paragraph("Basic Connectivity Services", heading_style))
             basic_table = self._create_tmobile_results_table(basic_results)
             story.append(basic_table)
-            story.append(Spacer(1, 0.2*inch))
+            story.append(Spacer(1, 0.1*inch))
         
         # Service Categories - Clean and organized
         if any([suspended_services, services_no_health_probe, services_no_ingress, services_no_selector]):
@@ -169,10 +168,10 @@ class HealthCheckReport:
                     story.append(Paragraph(f"{title} ({len(services)})", subheading_style))
                     service_table = self._create_tmobile_service_table(services)
                     story.append(service_table)
-                    story.append(Spacer(1, 0.15*inch))
+                    story.append(Spacer(1, 0.08*inch))
         
         # Clean footer
-        story.append(Spacer(1, 0.3*inch))
+        story.append(Spacer(1, 0.2*inch))
         footer_style = ParagraphStyle('Footer', parent=styles['Normal'], fontSize=8, 
                                     textColor=tmobile_dark, alignment=TA_CENTER)
         story.append(Paragraph(f"Generated: {self.timestamp.strftime('%Y-%m-%d %H:%M:%S')}", footer_style))
@@ -183,7 +182,7 @@ class HealthCheckReport:
         return str(filepath)
     
     def _create_status_overview_box(self, health_results, healthy_count, basic_results, suspended_services):
-        """Create a clean status overview box"""
+        """Create a clean status overview box with consistent formatting"""
         active_services = len(health_results) + len(basic_results)
         accessible_count = sum(1 for r in basic_results if 'ACCESSIBLE' in r[1]) if basic_results else 0
         total_healthy = healthy_count + accessible_count
@@ -213,19 +212,27 @@ class HealthCheckReport:
             ['Suspended Services', f'{len(suspended_services)}', 'Zero Pods']
         ]
         
-        # Use full width available - total = 7.5 inches
+        # Consistent column widths
         table = Table(data, colWidths=[2.5*inch, 2.5*inch, 2.5*inch])
         table.setStyle(TableStyle([
+            # Header styling - consistent with other tables
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#E20074')),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
             ('BACKGROUND', (1, 0), (1, 0), status_color),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 11),
-            ('FONTSIZE', (0, 1), (-1, -1), 9),
+            ('FONTSIZE', (0, 0), (-1, 0), 9),
+            ('FONTSIZE', (0, 1), (-1, -1), 8),
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
-            ('LEFTPADDING', (0, 0), (-1, -1), 3),
-            ('RIGHTPADDING', (0, 0), (-1, -1), 3),
+            
+            # Consistent padding
+            ('TOPPADDING', (0, 0), (-1, 0), 8),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+            ('TOPPADDING', (0, 1), (-1, -1), 4),
+            ('BOTTOMPADDING', (0, 1), (-1, -1), 4),
+            ('LEFTPADDING', (0, 0), (-1, -1), 4),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+            
+            # Professional appearance
             ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor('#F8F8F8')),
             ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#CCCCCC')),
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE')
@@ -236,7 +243,7 @@ class HealthCheckReport:
     def _create_tmobile_stats_table(self, health_results, healthy_count, basic_results,
                                   services_no_selector, services_no_health_probe,
                                   services_no_ingress, suspended_services):
-        """Create T-Mobile styled statistics table"""
+        """Create T-Mobile styled statistics table with consistent formatting"""
         active_services = len(health_results) + len(basic_results)
         total_services = (active_services + len(suspended_services) + 
                          len(services_no_selector) + len(services_no_health_probe) + 
@@ -256,20 +263,31 @@ class HealthCheckReport:
             ['Missing Selectors', str(len(services_no_selector)), f'{(len(services_no_selector)/total_services*100):.0f}%' if total_services > 0 else '0%']
         ]
         
-        # Use full width available - total = 7.5 inches
-        table = Table(data, colWidths=[4.5*inch, 1.5*inch, 1.5*inch])
+        # Professional column widths
+        table = Table(data, colWidths=[4.0*inch, 1.8*inch, 1.7*inch])
         table.setStyle(TableStyle([
+            # Header styling - consistent with results table
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#E20074')),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-            ('ALIGN', (1, 0), (-1, -1), 'CENTER'),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 10),
+            ('FONTSIZE', (0, 0), (-1, 0), 9),
+            ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+            
+            # Content styling
+            ('ALIGN', (0, 1), (0, -1), 'LEFT'),
+            ('ALIGN', (1, 1), (-1, -1), 'CENTER'),
             ('FONTSIZE', (0, 1), (-1, -1), 8),
+            
+            # Consistent padding
+            ('TOPPADDING', (0, 0), (-1, 0), 8),
             ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
-            ('LEFTPADDING', (0, 0), (-1, -1), 3),
-            ('RIGHTPADDING', (0, 0), (-1, -1), 3),
-            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.HexColor('#F5F5F5'), colors.white]),
+            ('TOPPADDING', (0, 1), (-1, -1), 4),
+            ('BOTTOMPADDING', (0, 1), (-1, -1), 4),
+            ('LEFTPADDING', (0, 0), (-1, -1), 4),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+            
+            # Professional appearance
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.HexColor('#F8F8F8'), colors.white]),
             ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#CCCCCC')),
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE')
         ]))
@@ -277,26 +295,40 @@ class HealthCheckReport:
         return table
     
     def _create_tmobile_results_table(self, results):
-        """Create T-Mobile styled results table with structured pod display"""
+        """Create T-Mobile styled results table with consistent professional formatting"""
         if not results:
             return None
         
         from reportlab.platypus import Paragraph
         styles = getSampleStyleSheet()
         
-        # Custom style for faulty pods
+        # Consistent professional style for all content
+        content_style = ParagraphStyle(
+            'ContentStyle',
+            parent=styles['Normal'],
+            fontSize=8,
+            textColor=colors.HexColor('#333333'),
+            leftIndent=0,
+            rightIndent=0,
+            spaceAfter=1,
+            spaceBefore=1,
+            leading=9
+        )
+        
+        # Style specifically for faulty pods with better spacing
         pod_style = ParagraphStyle(
             'PodStyle',
             parent=styles['Normal'],
-            fontSize=6,
+            fontSize=8,
             textColor=colors.HexColor('#333333'),
             leftIndent=0,
             rightIndent=0,
             spaceAfter=0,
-            spaceBefore=0
+            spaceBefore=0,
+            leading=10
         )
         
-        # Process data with text wrapping
+        # Process data with consistent formatting
         clean_data = [['Service', 'Status', 'Pods', 'Faulty Pods']]
         
         for row in results:
@@ -306,52 +338,70 @@ class HealthCheckReport:
                 clean_cell = str(cell)
                 clean_cell = re.sub(r'\033\[[0-9;]+m', '', clean_cell)
                 
-                # Apply wrapping
-                if i == 0:  # Service name
-                    clean_cell = self._wrap_text(clean_cell, 12)
-                elif i == 3:  # Faulty pods - use Paragraph for proper formatting
+                if i == 0:  # Service name - use Paragraph for consistent formatting
+                    wrapped_service = self._wrap_text(clean_cell, 15)
+                    clean_cell = Paragraph(wrapped_service, content_style)
+                elif i == 1:  # Status - use Paragraph for consistency
+                    clean_cell = Paragraph(clean_cell, content_style)
+                elif i == 2:  # Pod count - use Paragraph for consistency
+                    clean_cell = Paragraph(clean_cell, content_style)
+                elif i == 3:  # Faulty pods - structured format
                     formatted_pods = self._format_pod_names_for_pdf(clean_cell)
                     clean_cell = Paragraph(formatted_pods, pod_style)
                 
                 clean_row.append(clean_cell)
             clean_data.append(clean_row)
         
-        # Redistributed column widths for better pod name display
-        table = Table(clean_data, colWidths=[1.3*inch, 0.9*inch, 0.5*inch, 4.8*inch])
+        # Professional column widths - total = 7.5 inches
+        table = Table(clean_data, colWidths=[1.8*inch, 1.0*inch, 0.6*inch, 4.1*inch])
         
         style_commands = [
+            # Header styling
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#E20074')),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-            ('ALIGN', (2, 0), (-1, -1), 'CENTER'),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 8),
-            ('FONTSIZE', (0, 1), (-1, 2), 6),  # Apply to non-paragraph cells
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
+            ('FONTSIZE', (0, 0), (-1, 0), 9),
+            ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+            
+            # Content alignment
+            ('ALIGN', (0, 1), (0, -1), 'LEFT'),    # Service names left
+            ('ALIGN', (1, 1), (1, -1), 'CENTER'),  # Status center
+            ('ALIGN', (2, 1), (2, -1), 'CENTER'),  # Pod count center
+            ('ALIGN', (3, 1), (3, -1), 'LEFT'),    # Faulty pods left
+            
+            # Consistent padding - reduced for professional look
+            ('TOPPADDING', (0, 0), (-1, 0), 8),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
             ('TOPPADDING', (0, 1), (-1, -1), 4),
-            ('BOTTOMPADDING', (0, 1), (-1, -1), 8),
-            ('LEFTPADDING', (0, 0), (-1, -1), 3),
-            ('RIGHTPADDING', (0, 0), (-1, -1), 3),
+            ('BOTTOMPADDING', (0, 1), (-1, -1), 4),
+            ('LEFTPADDING', (0, 0), (-1, -1), 4),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+            
+            # Professional grid and background
             ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#CCCCCC')),
             ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.HexColor('#F5F5F5'), colors.white])
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.HexColor('#F8F8F8'), colors.white])
         ]
         
-        # Status-based coloring
+        # Status-based coloring with professional colors
         for i, row in enumerate(clean_data[1:], start=1):
-            status = row[1]
-            if 'UP' in status or 'ACCESSIBLE' in status:
-                style_commands.append(('BACKGROUND', (1, i), (1, i), colors.HexColor('#D4F6CC')))
-            elif 'DOWN' in status or 'ERROR' in status or 'TIMEOUT' in status or 'UNREACHABLE' in status:
-                style_commands.append(('BACKGROUND', (1, i), (1, i), colors.HexColor('#FFDDDD')))
+            if hasattr(row[1], 'text'):  # Check if it's a Paragraph object
+                status_text = row[1].text
             else:
-                style_commands.append(('BACKGROUND', (1, i), (1, i), colors.HexColor('#FFF3CD')))
+                status_text = str(row[1])
+                
+            if 'UP' in status_text or 'ACCESSIBLE' in status_text:
+                style_commands.append(('BACKGROUND', (1, i), (1, i), colors.HexColor('#E8F5E8')))
+            elif 'DOWN' in status_text or 'ERROR' in status_text or 'TIMEOUT' in status_text or 'UNREACHABLE' in status_text:
+                style_commands.append(('BACKGROUND', (1, i), (1, i), colors.HexColor('#FDE8E8')))
+            else:
+                style_commands.append(('BACKGROUND', (1, i), (1, i), colors.HexColor('#FFF8E1')))
         
         table.setStyle(TableStyle(style_commands))
         return table
     
     def _format_pod_names_for_pdf(self, pod_text):
-        """Format pod names for PDF with proper HTML line breaks"""
+        """Format pod names for PDF with consistent professional formatting"""
         if ':' not in pod_text:
             return pod_text
         
@@ -372,22 +422,23 @@ class HealthCheckReport:
         if not valid_pods:
             return f"<b>{count_part}:</b> None"
         
-        # Create structured format with proper HTML line breaks
+        # Create compact structured format
         formatted_result = f"<b>{count_part}:</b><br/>"
-        formatted_result += "<br/>".join(valid_pods)
+        # Use smaller line spacing for pods
+        formatted_result += "<br/>".join(f"• {pod}" for pod in valid_pods)
         
         return formatted_result
     
     def _create_tmobile_service_table(self, services):
-        """Create clean T-Mobile styled service list table"""
+        """Create clean T-Mobile styled service list table with consistent formatting"""
         if not services:
             return Paragraph("<i>No services in this category.</i>", getSampleStyleSheet()['Normal'])
         
-        # Create data in columns of 3 for better fit with wider page
+        # Create data in columns of 3 for professional layout
         data = [['Service Name', 'Service Name', 'Service Name']]
         
-        # Wrap service names
-        wrapped_services = [self._wrap_text(svc, 20) for svc in services]
+        # Wrap service names professionally
+        wrapped_services = [self._wrap_text(svc, 22) for svc in services]
         
         # Pad to make divisible by 3
         while len(wrapped_services) % 3 != 0:
@@ -398,24 +449,29 @@ class HealthCheckReport:
             row = wrapped_services[i:i+3]
             data.append(row)
         
-        # Use full width available - total = 7.5 inches
+        # Professional column widths
         table = Table(data, colWidths=[2.5*inch, 2.5*inch, 2.5*inch])
         table.setStyle(TableStyle([
+            # Header styling - consistent with other tables
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#E20074')),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
             ('FONTSIZE', (0, 0), (-1, 0), 9),
-            ('FONTSIZE', (0, 1), (-1, -1), 7),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
-            ('TOPPADDING', (0, 1), (-1, -1), 2),
-            ('BOTTOMPADDING', (0, 1), (-1, -1), 2),
-            ('LEFTPADDING', (0, 0), (-1, -1), 2),
-            ('RIGHTPADDING', (0, 0), (-1, -1), 2),
-            ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor('#F5F5F5')),
+            ('FONTSIZE', (0, 1), (-1, -1), 8),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            
+            # Consistent padding
+            ('TOPPADDING', (0, 0), (-1, 0), 8),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+            ('TOPPADDING', (0, 1), (-1, -1), 4),
+            ('BOTTOMPADDING', (0, 1), (-1, -1), 4),
+            ('LEFTPADDING', (0, 0), (-1, -1), 4),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+            
+            # Professional appearance
+            ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor('#F8F8F8')),
             ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#CCCCCC')),
-            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-            ('WORDWRAP', (0, 0), (-1, -1), 'LTR')
+            ('VALIGN', (0, 0), (-1, -1), 'TOP')
         ]))
         
         return table

@@ -65,7 +65,7 @@ class HealthCheckReport:
             return "\n".join(lines)
     
     def _wrap_pod_names(self, pod_text, max_length=35):
-        """Wrap faulty pod names without truncation - keep complete names"""
+        """Format faulty pod names in structured list format"""
         if ':' not in pod_text:
             return pod_text
         
@@ -73,29 +73,26 @@ class HealthCheckReport:
         count_part = parts[0]
         pod_names_part = parts[1].strip()
         
-        if len(pod_names_part) <= max_length:
-            return pod_text
+        # Handle "0: None" case
+        if pod_names_part.lower() in ['none', '']:
+            return f"{count_part}:\nNone"
         
-        # Split pod names and wrap them - NO TRUNCATION
+        # Split pod names and format each on a separate line
         pod_list = [name.strip() for name in pod_names_part.split(',')]
-        wrapped_lines = []
-        current_line = ""
         
+        # Format as:
+        # (count):
+        # pod-name-1
+        # pod-name-2
+        formatted_pods = []
         for pod in pod_list:
-            # If adding this pod would exceed the line length, start a new line
-            if current_line and len(current_line + ", " + pod) > max_length:
-                wrapped_lines.append(current_line)
-                current_line = pod
-            else:
-                if current_line:
-                    current_line += ", " + pod
-                else:
-                    current_line = pod
+            if pod:  # Skip empty names
+                formatted_pods.append(pod)
         
-        if current_line:
-            wrapped_lines.append(current_line)
-        
-        return count_part + ":\n" + "\n".join(wrapped_lines)
+        if formatted_pods:
+            return count_part + ":\n" + "\n".join(formatted_pods)
+        else:
+            return f"{count_part}:\nNone"
         
     def generate_pdf(self, health_results, healthy_count, basic_results, 
                     services_no_selector, services_no_health_probe, 

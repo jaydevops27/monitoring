@@ -1,3 +1,5 @@
+# Add this email job to your existing .gitlab-ci.yml file
+
 send_health_reports:
   stage: notify
   image: alpine:latest
@@ -8,7 +10,6 @@ send_health_reports:
     SFTP_PASSWORD: ${SFTP_PASSWORD}
   before_script:
     - apk add --update curl openssh sshpass coreutils && rm -rf /var/cache/apk/*
-    - chmod +x ./sendmail.sh
   script:
     - |
       # Check reports directory and PDF files
@@ -20,9 +21,24 @@ send_health_reports:
       echo "Found $(find reports -name "*.pdf" | wc -l) PDF report(s)"
       find reports -name "*.pdf" -exec basename {} \;
       
-      # Copy PDF files and send email
-      cp reports/*.pdf .
-      ./sendmail.sh
+      # Copy files to SFTP server
+      echo "Copying files to SFTP server..."
+      
+      # Create directory on SFTP server and copy PDF files
+      sshpass -p "$SFTP_PASSWORD" scp -o StrictHostKeyChecking=no reports/*.pdf "$SFTP_USERNAME@IP:/home/svc_user_stp/eligibility-NPE/k8_health_reports/"
+      
+      # Copy sendmail.sh to SFTP server
+      sshpass -p "$SFTP_PASSWORD" scp -o StrictHostKeyChecking=no sendmail.sh "$SFTP_USERNAME@IP:/home/svc_user_stp/eligibility-NPE/k8_health_reports/"
+      
+      # Execute sendmail.sh on SFTP server
+      echo "Executing sendmail.sh on SFTP server..."
+      sshpass -p "$SFTP_PASSWORD" ssh -o StrictHostKeyChecking=no "$SFTP_USERNAME@IP" "cd /home/svc_user_stp/eligibility-NPE/k8_health_reports && chmod +x sendmail.sh && ./sendmail.sh"
       
       echo "Health reports sent successfully!"
   when: on_success
+  only:
+    - schedules
+
+stages:
+  - monitor
+  - notify

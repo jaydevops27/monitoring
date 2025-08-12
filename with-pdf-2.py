@@ -97,209 +97,173 @@ class HealthCheckReport:
     def generate_pdf(self, health_results, healthy_count, basic_results, 
                     services_no_selector, services_no_health_probe, 
                     services_no_ingress, suspended_services, filename=None):
-        """Generate professional PDF report"""
+        """Generate professional organizational PDF report"""
         if not filename:
             filename = f"k8s_health_report_{self.namespace}_{self.timestamp.strftime('%Y%m%d_%H%M%S')}.pdf"
         
         filepath = self.output_dir / filename
         doc = SimpleDocTemplate(str(filepath), pagesize=A4, 
-                              leftMargin=0.6*inch, rightMargin=0.6*inch,
-                              topMargin=0.7*inch, bottomMargin=0.7*inch)
+                              leftMargin=0.5*inch, rightMargin=0.5*inch,
+                              topMargin=0.6*inch, bottomMargin=0.6*inch)
         story = []
         styles = getSampleStyleSheet()
         
-        # Professional custom styles
+        # T-Mobile color scheme - Professional styles
+        tmobile_magenta = colors.HexColor('#E20074')
+        tmobile_dark = colors.HexColor('#666666')
+        tmobile_light = colors.HexColor('#F5F5F5')
+        
         title_style = ParagraphStyle(
-            'CustomTitle',
+            'Title',
             parent=styles['Heading1'],
-            fontSize=26,
-            textColor=colors.HexColor('#1f4e79'),
-            spaceAfter=20,
+            fontSize=24,
+            textColor=tmobile_magenta,
+            spaceAfter=5,
             alignment=TA_CENTER,
             fontName='Helvetica-Bold'
         )
         
         subtitle_style = ParagraphStyle(
-            'CustomSubtitle',
+            'Subtitle',
             parent=styles['Normal'],
-            fontSize=12,
-            textColor=colors.HexColor('#5b6770'),
-            spaceAfter=30,
+            fontSize=11,
+            textColor=tmobile_dark,
+            spaceAfter=25,
             alignment=TA_CENTER,
             fontName='Helvetica'
         )
         
         heading_style = ParagraphStyle(
-            'CustomHeading',
+            'Heading',
             parent=styles['Heading2'],
-            fontSize=16,
-            textColor=colors.HexColor('#1f4e79'),
-            spaceAfter=15,
+            fontSize=14,
+            textColor=tmobile_magenta,
+            spaceAfter=10,
             spaceBefore=20,
             fontName='Helvetica-Bold'
         )
         
         subheading_style = ParagraphStyle(
-            'CustomSubHeading',
+            'SubHeading',
             parent=styles['Heading3'],
-            fontSize=13,
-            textColor=colors.HexColor('#2c5f8a'),
-            spaceAfter=10,
-            spaceBefore=15,
+            fontSize=12,
+            textColor=tmobile_dark,
+            spaceAfter=8,
+            spaceBefore=12,
             fontName='Helvetica-Bold'
         )
         
-        normal_style = ParagraphStyle(
-            'CustomNormal',
-            parent=styles['Normal'],
-            fontSize=11,
-            textColor=colors.HexColor('#333333'),
-            alignment=TA_JUSTIFY,
-            fontName='Helvetica'
-        )
+        # Header with clean layout
+        story.append(Paragraph("Kubernetes Health Report", title_style))
+        story.append(Paragraph(f"Namespace: <b>{self.namespace}</b> | {self.timestamp.strftime('%Y-%m-%d %H:%M')}", subtitle_style))
         
-        # Header Section
-        story.append(Paragraph("Kubernetes Health Assessment Report", title_style))
-        story.append(Paragraph(f"Namespace: <b>{self.namespace}</b> | Generated: {self.timestamp.strftime('%B %d, %Y at %H:%M:%S')}", subtitle_style))
-        
-        # Executive Summary
-        story.append(Paragraph("Executive Summary", heading_style))
-        summary = self._generate_executive_summary(health_results, healthy_count, basic_results,
-                                                 services_no_selector, services_no_health_probe,
-                                                 services_no_ingress, suspended_services)
-        story.append(Paragraph(summary, normal_style))
-        story.append(Spacer(1, 0.3*inch))
+        # Status Overview Box
+        status_overview = self._create_status_overview_box(health_results, healthy_count, basic_results, suspended_services)
+        story.append(status_overview)
+        story.append(Spacer(1, 0.25*inch))
         
         # Key Metrics Overview
-        story.append(Paragraph("Key Metrics Overview", heading_style))
-        stats_table = self._create_professional_stats_table(health_results, healthy_count, basic_results,
-                                                           services_no_selector, services_no_health_probe,
-                                                           services_no_ingress, suspended_services)
+        story.append(Paragraph("Service Metrics", heading_style))
+        stats_table = self._create_tmobile_stats_table(health_results, healthy_count, basic_results,
+                                                     services_no_selector, services_no_health_probe,
+                                                     services_no_ingress, suspended_services)
         story.append(stats_table)
+        story.append(Spacer(1, 0.25*inch))
+        
+        # Service Status Tables - Organized by category
+        if health_results:
+            story.append(Paragraph("Health Monitored Services", heading_style))
+            health_table = self._create_tmobile_results_table(health_results)
+            story.append(health_table)
+            story.append(Spacer(1, 0.2*inch))
+        
+        if basic_results:
+            story.append(Paragraph("Basic Connectivity Services", heading_style))
+            basic_table = self._create_tmobile_results_table(basic_results)
+            story.append(basic_table)
+            story.append(Spacer(1, 0.2*inch))
+        
+        # Service Categories - Clean and organized
+        if any([suspended_services, services_no_health_probe, services_no_ingress, services_no_selector]):
+            story.append(Paragraph("Service Categories", heading_style))
+            
+            categories = [
+                ("Suspended Services", suspended_services, "Services with zero pods"),
+                ("Services Without Health Probes", services_no_health_probe, "Missing health monitoring"),
+                ("Services Without Ingress", services_no_ingress, "No external access configured"),
+                ("Services Without Selectors", services_no_selector, "Invalid service configuration")
+            ]
+            
+            for title, services, description in categories:
+                if services:
+                    story.append(Paragraph(f"{title} ({len(services)})", subheading_style))
+                    service_table = self._create_tmobile_service_table(services)
+                    story.append(service_table)
+                    story.append(Spacer(1, 0.15*inch))
+        
+        # Clean footer
         story.append(Spacer(1, 0.3*inch))
-        
-        # Active Services Health Status
-        if health_results or basic_results:
-            story.append(Paragraph("Active Services Health Status", heading_style))
-            
-            if health_results:
-                story.append(Paragraph("Services with Health Endpoints", subheading_style))
-                health_table = self._create_professional_results_table(health_results)
-                story.append(health_table)
-                story.append(Spacer(1, 0.2*inch))
-            
-            if basic_results:
-                story.append(Paragraph("Services with Basic Connectivity", subheading_style))
-                basic_table = self._create_professional_results_table(basic_results)
-                story.append(basic_table)
-                story.append(Spacer(1, 0.3*inch))
-        
-        # Service Inventory
-        story.append(Paragraph("Complete Service Inventory", heading_style))
-        
-        if suspended_services:
-            story.append(Paragraph("Suspended Services (Zero Pods)", subheading_style))
-            story.append(Paragraph(f"<i>Total: {len(suspended_services)} services</i>", normal_style))
-            suspended_table = self._create_professional_service_table(suspended_services)
-            story.append(suspended_table)
-            story.append(Spacer(1, 0.2*inch))
-        
-        if services_no_health_probe:
-            story.append(Paragraph("Services Without Health Probes", subheading_style))
-            story.append(Paragraph(f"<i>Total: {len(services_no_health_probe)} services</i>", normal_style))
-            no_probe_table = self._create_professional_service_table(services_no_health_probe)
-            story.append(no_probe_table)
-            story.append(Spacer(1, 0.2*inch))
-        
-        if services_no_ingress:
-            story.append(Paragraph("Services Without Ingress Routes", subheading_style))
-            story.append(Paragraph(f"<i>Total: {len(services_no_ingress)} services</i>", normal_style))
-            no_ingress_table = self._create_professional_service_table(services_no_ingress)
-            story.append(no_ingress_table)
-            story.append(Spacer(1, 0.2*inch))
-        
-        if services_no_selector:
-            story.append(Paragraph("Services Without Selectors", subheading_style))
-            story.append(Paragraph(f"<i>Total: {len(services_no_selector)} services</i>", normal_style))
-            no_selector_table = self._create_professional_service_table(services_no_selector)
-            story.append(no_selector_table)
-            story.append(Spacer(1, 0.2*inch))
-        
-        # Footer
-        story.append(Spacer(1, 0.4*inch))
-        footer_style = ParagraphStyle(
-            'Footer',
-            parent=styles['Normal'],
-            fontSize=9,
-            textColor=colors.HexColor('#666666'),
-            alignment=TA_CENTER
-        )
-        story.append(Paragraph(f"Report generated by Kubernetes Health Monitor | {self.timestamp.strftime('%Y-%m-%d %H:%M:%S')}", footer_style))
+        footer_style = ParagraphStyle('Footer', parent=styles['Normal'], fontSize=8, 
+                                    textColor=tmobile_dark, alignment=TA_CENTER)
+        story.append(Paragraph(f"Generated: {self.timestamp.strftime('%Y-%m-%d %H:%M:%S')}", footer_style))
         
         # Build PDF
         doc.build(story)
-        print(f"{C.G}✅ Professional PDF report generated: {filepath}{C.E}")
+        print(f"{C.G}✅ Professional report generated: {filepath}{C.E}")
         return str(filepath)
     
-    def _generate_executive_summary(self, health_results, healthy_count, basic_results,
-                                  services_no_selector, services_no_health_probe,
-                                  services_no_ingress, suspended_services):
-        """Generate professional executive summary"""
-        # Calculate metrics excluding suspended services for health rate
+    def _create_status_overview_box(self, health_results, healthy_count, basic_results, suspended_services):
+        """Create a clean status overview box"""
         active_services = len(health_results) + len(basic_results)
-        total_all_services = (active_services + len(suspended_services) + 
-                            len(services_no_selector) + len(services_no_health_probe) + 
-                            len(services_no_ingress))
-        
         accessible_count = sum(1 for r in basic_results if 'ACCESSIBLE' in r[1]) if basic_results else 0
-        total_healthy_accessible = healthy_count + accessible_count
+        total_healthy = healthy_count + accessible_count
         
-        # Health rate calculation excludes suspended services
         if active_services > 0:
-            overall_health_rate = (total_healthy_accessible / active_services) * 100
+            overall_health_rate = (total_healthy / active_services) * 100
         else:
             overall_health_rate = 0
         
-        # Determine status
+        # Determine status and color
         if overall_health_rate >= 95:
-            status = "🟢 EXCELLENT"
-            status_desc = "All active services are operating normally"
+            status = "EXCELLENT"
+            status_color = colors.HexColor('#00A651')
         elif overall_health_rate >= 85:
-            status = "🟢 HEALTHY"
-            status_desc = "Most services are operating normally with minor issues"
+            status = "HEALTHY" 
+            status_color = colors.HexColor('#00A651')
         elif overall_health_rate >= 70:
-            status = "🟡 DEGRADED"
-            status_desc = "Significant service issues detected requiring attention"
+            status = "DEGRADED"
+            status_color = colors.HexColor('#FFB81C')
         else:
-            status = "🔴 CRITICAL"
-            status_desc = "Multiple critical service failures requiring immediate action"
+            status = "CRITICAL"
+            status_color = colors.HexColor('#E20074')
         
-        summary = f"""
-        <b>System Health Status: {status}</b><br/>
-        <i>{status_desc}</i><br/><br/>
+        data = [
+            ['SYSTEM STATUS', f'{status}', f'{overall_health_rate:.1f}%'],
+            ['Active Services', f'{total_healthy}/{active_services}', 'Operational'],
+            ['Suspended Services', f'{len(suspended_services)}', 'Zero Pods']
+        ]
         
-        <b>Key Findings:</b><br/>
-        • Total Services Discovered: {total_all_services}<br/>
-        • Active Services (Testable): {active_services}<br/>
-        • Healthy/Accessible Services: {total_healthy_accessible} ({overall_health_rate:.1f}%)<br/>
-        • Suspended Services: {len(suspended_services)}<br/>
-        • Services Requiring Configuration: {len(services_no_health_probe) + len(services_no_ingress) + len(services_no_selector)}<br/><br/>
+        table = Table(data, colWidths=[2.5*inch, 2*inch, 1.5*inch])
+        table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#E20074')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('BACKGROUND', (1, 0), (1, 0), status_color),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 12),
+            ('FONTSIZE', (0, 1), (-1, -1), 10),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor('#F8F8F8')),
+            ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#CCCCCC')),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE')
+        ]))
         
-        <b>Service Health Breakdown:</b><br/>
-        • Health Monitored Services: {len(health_results)} (Healthy: {healthy_count})<br/>
-        • Basic Connectivity Tested: {len(basic_results)} (Accessible: {accessible_count})<br/>
-        • Operational Services: {total_healthy_accessible} of {active_services} active services<br/><br/>
-        
-        This assessment provides a comprehensive view of service health across the {self.namespace} namespace, 
-        focusing on operational readiness and identifying areas for improvement.
-        """
-        
-        return summary
+        return table
     
-    def _create_professional_stats_table(self, health_results, healthy_count, basic_results,
-                                       services_no_selector, services_no_health_probe,
-                                       services_no_ingress, suspended_services):
-        """Create professional statistics table"""
+    def _create_tmobile_stats_table(self, health_results, healthy_count, basic_results,
+                                  services_no_selector, services_no_health_probe,
+                                  services_no_ingress, suspended_services):
+        """Create T-Mobile styled statistics table"""
         active_services = len(health_results) + len(basic_results)
         total_services = (active_services + len(suspended_services) + 
                          len(services_no_selector) + len(services_no_health_probe) + 
@@ -309,42 +273,40 @@ class HealthCheckReport:
         total_healthy = healthy_count + accessible_count
         
         data = [
-            ['Metric', 'Count', 'Percentage'],
-            ['Total Services Discovered', str(total_services), '100%'],
-            ['Active Services (Testable)', str(active_services), f'{(active_services/total_services*100):.1f}%' if total_services > 0 else '0%'],
-            ['Healthy/Accessible Services', str(total_healthy), f'{(total_healthy/active_services*100):.1f}%' if active_services > 0 else '0%'],
-            ['Services with Health Endpoints', str(len(health_results)), f'{(len(health_results)/total_services*100):.1f}%' if total_services > 0 else '0%'],
-            ['Basic Connectivity Only', str(len(basic_results)), f'{(len(basic_results)/total_services*100):.1f}%' if total_services > 0 else '0%'],
-            ['Suspended Services', str(len(suspended_services)), f'{(len(suspended_services)/total_services*100):.1f}%' if total_services > 0 else '0%'],
-            ['Missing Health Probes', str(len(services_no_health_probe)), f'{(len(services_no_health_probe)/total_services*100):.1f}%' if total_services > 0 else '0%'],
-            ['Missing Ingress Routes', str(len(services_no_ingress)), f'{(len(services_no_ingress)/total_services*100):.1f}%' if total_services > 0 else '0%'],
-            ['Missing Selectors', str(len(services_no_selector)), f'{(len(services_no_selector)/total_services*100):.1f}%' if total_services > 0 else '0%']
+            ['Metric', 'Count', '%'],
+            ['Total Services', str(total_services), '100%'],
+            ['Active Services', str(active_services), f'{(active_services/total_services*100):.0f}%' if total_services > 0 else '0%'],
+            ['Healthy Services', str(total_healthy), f'{(total_healthy/active_services*100):.0f}%' if active_services > 0 else '0%'],
+            ['Suspended Services', str(len(suspended_services)), f'{(len(suspended_services)/total_services*100):.0f}%' if total_services > 0 else '0%'],
+            ['Missing Health Probes', str(len(services_no_health_probe)), f'{(len(services_no_health_probe)/total_services*100):.0f}%' if total_services > 0 else '0%'],
+            ['Missing Ingress', str(len(services_no_ingress)), f'{(len(services_no_ingress)/total_services*100):.0f}%' if total_services > 0 else '0%'],
+            ['Missing Selectors', str(len(services_no_selector)), f'{(len(services_no_selector)/total_services*100):.0f}%' if total_services > 0 else '0%']
         ]
         
-        table = Table(data, colWidths=[3.2*inch, 1.4*inch, 1.4*inch])
+        table = Table(data, colWidths=[3*inch, 1.5*inch, 1.5*inch])
         table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1f4e79')),
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#E20074')),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
             ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
             ('ALIGN', (1, 0), (-1, -1), 'CENTER'),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 11),
-            ('FONTSIZE', (0, 1), (-1, -1), 10),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.HexColor('#f8f9fa'), colors.white]),
-            ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#dee2e6')),
+            ('FONTSIZE', (0, 0), (-1, 0), 10),
+            ('FONTSIZE', (0, 1), (-1, -1), 9),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.HexColor('#F5F5F5'), colors.white]),
+            ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#CCCCCC')),
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE')
         ]))
         
         return table
     
-    def _create_professional_results_table(self, results):
-        """Create professional results table with proper text wrapping"""
+    def _create_tmobile_results_table(self, results):
+        """Create T-Mobile styled results table with clean formatting"""
         if not results:
             return None
         
         # Process data with text wrapping
-        clean_data = [['Service Name', 'Status', 'Pods', 'Faulty Pods']]
+        clean_data = [['Service', 'Status', 'Pods', 'Faulty Pods']]
         
         for row in results:
             clean_row = []
@@ -353,80 +315,80 @@ class HealthCheckReport:
                 clean_cell = str(cell)
                 clean_cell = re.sub(r'\033\[[0-9;]+m', '', clean_cell)
                 
-                # Apply specific wrapping based on column
+                # Apply wrapping
                 if i == 0:  # Service name
-                    clean_cell = self._wrap_text(clean_cell, 20)
+                    clean_cell = self._wrap_text(clean_cell, 18)
                 elif i == 3:  # Faulty pods
-                    clean_cell = self._wrap_pod_names(clean_cell, 25)
+                    clean_cell = self._wrap_pod_names(clean_cell, 22)
                 
                 clean_row.append(clean_cell)
             clean_data.append(clean_row)
         
-        # Fixed column widths to prevent overflow
-        table = Table(clean_data, colWidths=[1.8*inch, 1.2*inch, 0.6*inch, 2.4*inch])
+        # Fixed column widths
+        table = Table(clean_data, colWidths=[1.7*inch, 1.1*inch, 0.6*inch, 2.6*inch])
         
         style_commands = [
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1f4e79')),
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#E20074')),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
             ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-            ('ALIGN', (2, 0), (-1, -1), 'CENTER'),  # Center pods column
+            ('ALIGN', (2, 0), (-1, -1), 'CENTER'),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 10),
+            ('FONTSIZE', (0, 0), (-1, 0), 9),
             ('FONTSIZE', (0, 1), (-1, -1), 8),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
-            ('TOPPADDING', (0, 1), (-1, -1), 4),
-            ('BOTTOMPADDING', (0, 1), (-1, -1), 4),
-            ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#dee2e6')),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+            ('TOPPADDING', (0, 1), (-1, -1), 3),
+            ('BOTTOMPADDING', (0, 1), (-1, -1), 3),
+            ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#CCCCCC')),
             ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.HexColor('#f8f9fa'), colors.white])
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.HexColor('#F5F5F5'), colors.white])
         ]
         
         # Status-based coloring
         for i, row in enumerate(clean_data[1:], start=1):
             status = row[1]
             if 'UP' in status or 'ACCESSIBLE' in status:
-                style_commands.append(('BACKGROUND', (1, i), (1, i), colors.HexColor('#d4edda')))
+                style_commands.append(('BACKGROUND', (1, i), (1, i), colors.HexColor('#D4F6CC')))
             elif 'DOWN' in status or 'ERROR' in status or 'TIMEOUT' in status or 'UNREACHABLE' in status:
-                style_commands.append(('BACKGROUND', (1, i), (1, i), colors.HexColor('#f8d7da')))
+                style_commands.append(('BACKGROUND', (1, i), (1, i), colors.HexColor('#FFDDDD')))
             else:
-                style_commands.append(('BACKGROUND', (1, i), (1, i), colors.HexColor('#fff3cd')))
+                style_commands.append(('BACKGROUND', (1, i), (1, i), colors.HexColor('#FFF3CD')))
         
         table.setStyle(TableStyle(style_commands))
         return table
     
-    def _create_professional_service_table(self, services):
-        """Create professional service list table"""
+    def _create_tmobile_service_table(self, services):
+        """Create clean T-Mobile styled service list table"""
         if not services:
             return Paragraph("<i>No services in this category.</i>", getSampleStyleSheet()['Normal'])
         
-        # Create data in columns of 3 for better readability
-        data = [['Service Name', 'Service Name', 'Service Name']]
+        # Create data in columns of 4
+        data = [['Service Name', 'Service Name', 'Service Name', 'Service Name']]
         
-        # Wrap service names and group into rows
-        wrapped_services = [self._wrap_text(svc, 25) for svc in services]
+        # Wrap service names
+        wrapped_services = [self._wrap_text(svc, 20) for svc in services]
         
-        # Pad to make divisible by 3
-        while len(wrapped_services) % 3 != 0:
+        # Pad to make divisible by 4
+        while len(wrapped_services) % 4 != 0:
             wrapped_services.append('')
         
-        # Group into rows of 3
-        for i in range(0, len(wrapped_services), 3):
-            row = wrapped_services[i:i+3]
+        # Group into rows of 4
+        for i in range(0, len(wrapped_services), 4):
+            row = wrapped_services[i:i+4]
             data.append(row)
         
-        table = Table(data, colWidths=[2.2*inch, 2.2*inch, 2.2*inch])
+        table = Table(data, colWidths=[1.5*inch, 1.5*inch, 1.5*inch, 1.5*inch])
         table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1f4e79')),
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#E20074')),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
             ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 10),
+            ('FONTSIZE', (0, 0), (-1, 0), 9),
             ('FONTSIZE', (0, 1), (-1, -1), 8),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
             ('TOPPADDING', (0, 1), (-1, -1), 3),
             ('BOTTOMPADDING', (0, 1), (-1, -1), 3),
-            ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor('#f8f9fa')),
-            ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#dee2e6')),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor('#F5F5F5')),
+            ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#CCCCCC')),
             ('VALIGN', (0, 0), (-1, -1), 'TOP')
         ]))
         

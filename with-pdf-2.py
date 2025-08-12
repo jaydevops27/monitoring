@@ -9,10 +9,10 @@ import os
 from pathlib import Path
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter, A4
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
-from reportlab.lib.enums import TA_CENTER, TA_LEFT
+from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_JUSTIFY
 import sys
 import re
 
@@ -34,194 +34,317 @@ class HealthCheckReport:
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.timestamp = datetime.now()
         
+    def _wrap_text(self, text, max_length=25):
+        """Wrap text to fit in table cells"""
+        if len(text) <= max_length:
+            return text
+        
+        # For service names, wrap at logical points
+        if '.' in text or '-' in text:
+            parts = re.split(r'([.-])', text)
+            result = ""
+            current_line = ""
+            
+            for part in parts:
+                if len(current_line + part) <= max_length:
+                    current_line += part
+                else:
+                    if current_line:
+                        result += current_line + "\n"
+                    current_line = part
+            
+            if current_line:
+                result += current_line
+            
+            return result
+        else:
+            # Simple character-based wrapping
+            lines = []
+            for i in range(0, len(text), max_length):
+                lines.append(text[i:i+max_length])
+            return "\n".join(lines)
+    
+    def _wrap_pod_names(self, pod_text, max_length=30):
+        """Wrap faulty pod names properly"""
+        if ':' not in pod_text:
+            return pod_text
+        
+        parts = pod_text.split(':', 1)
+        count_part = parts[0]
+        pod_names_part = parts[1].strip()
+        
+        if len(pod_names_part) <= max_length:
+            return pod_text
+        
+        # Split pod names and wrap them
+        pod_list = [name.strip() for name in pod_names_part.split(',')]
+        wrapped_lines = []
+        current_line = ""
+        
+        for pod in pod_list:
+            if len(current_line + pod + ", ") <= max_length:
+                current_line += pod + ", "
+            else:
+                if current_line:
+                    wrapped_lines.append(current_line.rstrip(', '))
+                current_line = pod + ", "
+        
+        if current_line:
+            wrapped_lines.append(current_line.rstrip(', '))
+        
+        return count_part + ": " + "\n".join(wrapped_lines)
+        
     def generate_pdf(self, health_results, healthy_count, basic_results, 
                     services_no_selector, services_no_health_probe, 
                     services_no_ingress, suspended_services, filename=None):
-        """Generate PDF report"""
+        """Generate professional PDF report"""
         if not filename:
             filename = f"k8s_health_report_{self.namespace}_{self.timestamp.strftime('%Y%m%d_%H%M%S')}.pdf"
         
         filepath = self.output_dir / filename
         doc = SimpleDocTemplate(str(filepath), pagesize=A4, 
-                              leftMargin=0.5*inch, rightMargin=0.5*inch,
-                              topMargin=0.5*inch, bottomMargin=0.5*inch)
+                              leftMargin=0.6*inch, rightMargin=0.6*inch,
+                              topMargin=0.7*inch, bottomMargin=0.7*inch)
         story = []
         styles = getSampleStyleSheet()
         
-        # Custom styles
+        # Professional custom styles
         title_style = ParagraphStyle(
             'CustomTitle',
             parent=styles['Heading1'],
-            fontSize=24,
-            textColor=colors.HexColor('#2C3E50'),
+            fontSize=26,
+            textColor=colors.HexColor('#1f4e79'),
+            spaceAfter=20,
+            alignment=TA_CENTER,
+            fontName='Helvetica-Bold'
+        )
+        
+        subtitle_style = ParagraphStyle(
+            'CustomSubtitle',
+            parent=styles['Normal'],
+            fontSize=12,
+            textColor=colors.HexColor('#5b6770'),
             spaceAfter=30,
-            alignment=TA_CENTER
+            alignment=TA_CENTER,
+            fontName='Helvetica'
         )
         
         heading_style = ParagraphStyle(
             'CustomHeading',
             parent=styles['Heading2'],
-            fontSize=14,
-            textColor=colors.HexColor('#34495E'),
-            spaceAfter=12,
-            spaceBefore=12
+            fontSize=16,
+            textColor=colors.HexColor('#1f4e79'),
+            spaceAfter=15,
+            spaceBefore=20,
+            fontName='Helvetica-Bold'
         )
         
         subheading_style = ParagraphStyle(
             'CustomSubHeading',
             parent=styles['Heading3'],
-            fontSize=12,
-            textColor=colors.HexColor('#34495E'),
-            spaceAfter=8,
-            spaceBefore=8
+            fontSize=13,
+            textColor=colors.HexColor('#2c5f8a'),
+            spaceAfter=10,
+            spaceBefore=15,
+            fontName='Helvetica-Bold'
         )
         
-        # Title
-        story.append(Paragraph(f"Kubernetes Health Check Report", title_style))
-        story.append(Paragraph(f"Namespace: {self.namespace}", styles['Normal']))
-        story.append(Paragraph(f"Generated: {self.timestamp.strftime('%Y-%m-%d %H:%M:%S')}", styles['Normal']))
-        story.append(Spacer(1, 0.5*inch))
+        normal_style = ParagraphStyle(
+            'CustomNormal',
+            parent=styles['Normal'],
+            fontSize=11,
+            textColor=colors.HexColor('#333333'),
+            alignment=TA_JUSTIFY,
+            fontName='Helvetica'
+        )
+        
+        # Header Section
+        story.append(Paragraph("Kubernetes Health Assessment Report", title_style))
+        story.append(Paragraph(f"Namespace: <b>{self.namespace}</b> | Generated: {self.timestamp.strftime('%B %d, %Y at %H:%M:%S')}", subtitle_style))
         
         # Executive Summary
         story.append(Paragraph("Executive Summary", heading_style))
-        summary = self._generate_summary(health_results, healthy_count, basic_results,
-                                       services_no_selector, services_no_health_probe,
-                                       services_no_ingress, suspended_services)
-        story.append(Paragraph(summary, styles['Normal']))
+        summary = self._generate_executive_summary(health_results, healthy_count, basic_results,
+                                                 services_no_selector, services_no_health_probe,
+                                                 services_no_ingress, suspended_services)
+        story.append(Paragraph(summary, normal_style))
         story.append(Spacer(1, 0.3*inch))
         
-        # Statistics Overview
-        story.append(Paragraph("Statistics Overview", heading_style))
-        stats_table = self._create_stats_table(health_results, healthy_count, basic_results,
-                                              services_no_selector, services_no_health_probe,
-                                              services_no_ingress, suspended_services)
+        # Key Metrics Overview
+        story.append(Paragraph("Key Metrics Overview", heading_style))
+        stats_table = self._create_professional_stats_table(health_results, healthy_count, basic_results,
+                                                           services_no_selector, services_no_health_probe,
+                                                           services_no_ingress, suspended_services)
         story.append(stats_table)
         story.append(Spacer(1, 0.3*inch))
         
-        # Health Check Results
-        if health_results:
-            story.append(Paragraph("Services with Health Endpoints", heading_style))
-            health_table = self._create_results_table(health_results, "Health Check Results")
-            story.append(health_table)
-            story.append(Spacer(1, 0.3*inch))
+        # Active Services Health Status
+        if health_results or basic_results:
+            story.append(Paragraph("Active Services Health Status", heading_style))
+            
+            if health_results:
+                story.append(Paragraph("Services with Health Endpoints", subheading_style))
+                health_table = self._create_professional_results_table(health_results)
+                story.append(health_table)
+                story.append(Spacer(1, 0.2*inch))
+            
+            if basic_results:
+                story.append(Paragraph("Services with Basic Connectivity", subheading_style))
+                basic_table = self._create_professional_results_table(basic_results)
+                story.append(basic_table)
+                story.append(Spacer(1, 0.3*inch))
         
-        # Basic Connectivity Results
-        if basic_results:
-            story.append(Paragraph("Services with Basic Connectivity", heading_style))
-            basic_table = self._create_results_table(basic_results, "Basic Connectivity")
-            story.append(basic_table)
-            story.append(Spacer(1, 0.3*inch))
-        
-        # Service Categories - ALL COMPLETE LISTS
-        story.append(Paragraph("Service Categories", heading_style))
+        # Service Inventory
+        story.append(Paragraph("Complete Service Inventory", heading_style))
         
         if suspended_services:
-            story.append(Paragraph("Suspended Services (0 pods)", subheading_style))
-            suspended_table = self._create_service_list_table(suspended_services)
+            story.append(Paragraph("Suspended Services (Zero Pods)", subheading_style))
+            story.append(Paragraph(f"<i>Total: {len(suspended_services)} services</i>", normal_style))
+            suspended_table = self._create_professional_service_table(suspended_services)
             story.append(suspended_table)
             story.append(Spacer(1, 0.2*inch))
         
-        if services_no_selector:
-            story.append(Paragraph("Services without Selector", subheading_style))
-            no_selector_table = self._create_service_list_table(services_no_selector)
-            story.append(no_selector_table)
-            story.append(Spacer(1, 0.2*inch))
-        
         if services_no_health_probe:
-            story.append(Paragraph("Services without Health Probe", subheading_style))
-            no_probe_table = self._create_service_list_table(services_no_health_probe)
+            story.append(Paragraph("Services Without Health Probes", subheading_style))
+            story.append(Paragraph(f"<i>Total: {len(services_no_health_probe)} services</i>", normal_style))
+            no_probe_table = self._create_professional_service_table(services_no_health_probe)
             story.append(no_probe_table)
             story.append(Spacer(1, 0.2*inch))
         
         if services_no_ingress:
-            story.append(Paragraph("Services without Ingress Route", subheading_style))
-            no_ingress_table = self._create_service_list_table(services_no_ingress)
+            story.append(Paragraph("Services Without Ingress Routes", subheading_style))
+            story.append(Paragraph(f"<i>Total: {len(services_no_ingress)} services</i>", normal_style))
+            no_ingress_table = self._create_professional_service_table(services_no_ingress)
             story.append(no_ingress_table)
             story.append(Spacer(1, 0.2*inch))
         
+        if services_no_selector:
+            story.append(Paragraph("Services Without Selectors", subheading_style))
+            story.append(Paragraph(f"<i>Total: {len(services_no_selector)} services</i>", normal_style))
+            no_selector_table = self._create_professional_service_table(services_no_selector)
+            story.append(no_selector_table)
+            story.append(Spacer(1, 0.2*inch))
+        
+        # Footer
+        story.append(Spacer(1, 0.4*inch))
+        footer_style = ParagraphStyle(
+            'Footer',
+            parent=styles['Normal'],
+            fontSize=9,
+            textColor=colors.HexColor('#666666'),
+            alignment=TA_CENTER
+        )
+        story.append(Paragraph(f"Report generated by Kubernetes Health Monitor | {self.timestamp.strftime('%Y-%m-%d %H:%M:%S')}", footer_style))
+        
         # Build PDF
         doc.build(story)
-        print(f"{C.G}✅ PDF report generated: {filepath}{C.E}")
+        print(f"{C.G}✅ Professional PDF report generated: {filepath}{C.E}")
         return str(filepath)
     
-    def _generate_summary(self, health_results, healthy_count, basic_results,
-                         services_no_selector, services_no_health_probe,
-                         services_no_ingress, suspended_services):
-        """Generate executive summary"""
-        total_services = (len(health_results) + len(basic_results) + 
-                         len(suspended_services) + len(services_no_selector) + 
-                         len(services_no_health_probe) + len(services_no_ingress))
-        
-        if health_results:
-            health_rate = (healthy_count / len(health_results)) * 100
-        else:
-            health_rate = 0
+    def _generate_executive_summary(self, health_results, healthy_count, basic_results,
+                                  services_no_selector, services_no_health_probe,
+                                  services_no_ingress, suspended_services):
+        """Generate professional executive summary"""
+        # Calculate metrics excluding suspended services for health rate
+        active_services = len(health_results) + len(basic_results)
+        total_all_services = (active_services + len(suspended_services) + 
+                            len(services_no_selector) + len(services_no_health_probe) + 
+                            len(services_no_ingress))
         
         accessible_count = sum(1 for r in basic_results if 'ACCESSIBLE' in r[1]) if basic_results else 0
+        total_healthy_accessible = healthy_count + accessible_count
+        
+        # Health rate calculation excludes suspended services
+        if active_services > 0:
+            overall_health_rate = (total_healthy_accessible / active_services) * 100
+        else:
+            overall_health_rate = 0
+        
+        # Determine status
+        if overall_health_rate >= 95:
+            status = "🟢 EXCELLENT"
+            status_desc = "All active services are operating normally"
+        elif overall_health_rate >= 85:
+            status = "🟢 HEALTHY"
+            status_desc = "Most services are operating normally with minor issues"
+        elif overall_health_rate >= 70:
+            status = "🟡 DEGRADED"
+            status_desc = "Significant service issues detected requiring attention"
+        else:
+            status = "🔴 CRITICAL"
+            status_desc = "Multiple critical service failures requiring immediate action"
         
         summary = f"""
-        This report provides a comprehensive health check of all services in the '{self.namespace}' namespace.
+        <b>System Health Status: {status}</b><br/>
+        <i>{status_desc}</i><br/><br/>
         
-        Total Services: {total_services}
-        Services with Health Endpoints: {len(health_results)} (Healthy: {healthy_count})
-        Services with Basic Connectivity: {len(basic_results)} (Accessible: {accessible_count})
-        Suspended Services: {len(suspended_services)}
-        Services without Health Probe: {len(services_no_health_probe)}
-        Services without Ingress: {len(services_no_ingress)}
-        Services without Selector: {len(services_no_selector)}
+        <b>Key Findings:</b><br/>
+        • Total Services Discovered: {total_all_services}<br/>
+        • Active Services (Testable): {active_services}<br/>
+        • Healthy/Accessible Services: {total_healthy_accessible} ({overall_health_rate:.1f}%)<br/>
+        • Suspended Services: {len(suspended_services)}<br/>
+        • Services Requiring Configuration: {len(services_no_health_probe) + len(services_no_ingress) + len(services_no_selector)}<br/><br/>
         
-        Overall Health Rate: {health_rate:.1f}%
-        Overall Status: {'✅ Healthy' if health_rate >= 90 else '⚠️ Degraded' if health_rate >= 70 else '❌ Critical'}
+        <b>Service Health Breakdown:</b><br/>
+        • Health Monitored Services: {len(health_results)} (Healthy: {healthy_count})<br/>
+        • Basic Connectivity Tested: {len(basic_results)} (Accessible: {accessible_count})<br/>
+        • Operational Services: {total_healthy_accessible} of {active_services} active services<br/><br/>
+        
+        This assessment provides a comprehensive view of service health across the {self.namespace} namespace, 
+        focusing on operational readiness and identifying areas for improvement.
         """
         
         return summary
     
-    def _create_stats_table(self, health_results, healthy_count, basic_results,
-                           services_no_selector, services_no_health_probe,
-                           services_no_ingress, suspended_services):
-        """Create statistics table for PDF"""
-        total_services = (len(health_results) + len(basic_results) + 
-                         len(suspended_services) + len(services_no_selector) + 
-                         len(services_no_health_probe) + len(services_no_ingress))
+    def _create_professional_stats_table(self, health_results, healthy_count, basic_results,
+                                       services_no_selector, services_no_health_probe,
+                                       services_no_ingress, suspended_services):
+        """Create professional statistics table"""
+        active_services = len(health_results) + len(basic_results)
+        total_services = (active_services + len(suspended_services) + 
+                         len(services_no_selector) + len(services_no_health_probe) + 
+                         len(services_no_ingress))
         
         accessible_count = sum(1 for r in basic_results if 'ACCESSIBLE' in r[1]) if basic_results else 0
+        total_healthy = healthy_count + accessible_count
         
         data = [
-            ['Metric', 'Count'],
-            ['Total Services', str(total_services)],
-            ['Services with Health Endpoints', str(len(health_results))],
-            ['Healthy Services', str(healthy_count)],
-            ['Services with Basic Connectivity', str(len(basic_results))],
-            ['Accessible Services', str(accessible_count)],
-            ['Suspended Services', str(len(suspended_services))],
-            ['Services without Health Probe', str(len(services_no_health_probe))],
-            ['Services without Ingress', str(len(services_no_ingress))],
-            ['Services without Selector', str(len(services_no_selector))]
+            ['Metric', 'Count', 'Percentage'],
+            ['Total Services Discovered', str(total_services), '100%'],
+            ['Active Services (Testable)', str(active_services), f'{(active_services/total_services*100):.1f}%' if total_services > 0 else '0%'],
+            ['Healthy/Accessible Services', str(total_healthy), f'{(total_healthy/active_services*100):.1f}%' if active_services > 0 else '0%'],
+            ['Services with Health Endpoints', str(len(health_results)), f'{(len(health_results)/total_services*100):.1f}%' if total_services > 0 else '0%'],
+            ['Basic Connectivity Only', str(len(basic_results)), f'{(len(basic_results)/total_services*100):.1f}%' if total_services > 0 else '0%'],
+            ['Suspended Services', str(len(suspended_services)), f'{(len(suspended_services)/total_services*100):.1f}%' if total_services > 0 else '0%'],
+            ['Missing Health Probes', str(len(services_no_health_probe)), f'{(len(services_no_health_probe)/total_services*100):.1f}%' if total_services > 0 else '0%'],
+            ['Missing Ingress Routes', str(len(services_no_ingress)), f'{(len(services_no_ingress)/total_services*100):.1f}%' if total_services > 0 else '0%'],
+            ['Missing Selectors', str(len(services_no_selector)), f'{(len(services_no_selector)/total_services*100):.1f}%' if total_services > 0 else '0%']
         ]
         
-        table = Table(data, colWidths=[4.5*inch, 2*inch])
+        table = Table(data, colWidths=[3.2*inch, 1.4*inch, 1.4*inch])
         table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1f4e79')),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
             ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
             ('ALIGN', (1, 0), (-1, -1), 'CENTER'),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 12),
-            ('FONTSIZE', (0, 1), (-1, -1), 11),
+            ('FONTSIZE', (0, 0), (-1, 0), 11),
+            ('FONTSIZE', (0, 1), (-1, -1), 10),
             ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black)
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.HexColor('#f8f9fa'), colors.white]),
+            ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#dee2e6')),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE')
         ]))
         
         return table
     
-    def _create_results_table(self, results, table_type):
-        """Create results table for PDF with proper text wrapping"""
+    def _create_professional_results_table(self, results):
+        """Create professional results table with proper text wrapping"""
         if not results:
             return None
         
-        # Clean data for PDF (remove ANSI colors and handle long text)
-        clean_data = [['Service', 'Status', 'Pods', 'Faulty Pods']]
+        # Process data with text wrapping
+        clean_data = [['Service Name', 'Status', 'Pods', 'Faulty Pods']]
         
         for row in results:
             clean_row = []
@@ -230,96 +353,80 @@ class HealthCheckReport:
                 clean_cell = str(cell)
                 clean_cell = re.sub(r'\033\[[0-9;]+m', '', clean_cell)
                 
-                # Handle long faulty pod names in the last column
-                if i == 3 and len(clean_cell) > 40:  # Faulty pods column
-                    # Split long pod names list
-                    if ':' in clean_cell:
-                        parts = clean_cell.split(':', 1)
-                        if len(parts) > 1:
-                            count_part = parts[0]
-                            pod_names = parts[1].strip()
-                            
-                            # Break long pod names into multiple lines
-                            if len(pod_names) > 40:
-                                pod_list = pod_names.split(', ')
-                                formatted_pods = []
-                                current_line = ""
-                                
-                                for pod in pod_list:
-                                    if len(current_line + pod) < 35:
-                                        current_line += pod + ", "
-                                    else:
-                                        if current_line:
-                                            formatted_pods.append(current_line.rstrip(', '))
-                                        current_line = pod + ", "
-                                
-                                if current_line:
-                                    formatted_pods.append(current_line.rstrip(', '))
-                                
-                                clean_cell = count_part + ": " + "\n".join(formatted_pods)
+                # Apply specific wrapping based on column
+                if i == 0:  # Service name
+                    clean_cell = self._wrap_text(clean_cell, 20)
+                elif i == 3:  # Faulty pods
+                    clean_cell = self._wrap_pod_names(clean_cell, 25)
                 
                 clean_row.append(clean_cell)
             clean_data.append(clean_row)
         
-        # Adjust column widths for better fit
-        table = Table(clean_data, colWidths=[2*inch, 1.3*inch, 0.7*inch, 3*inch])
+        # Fixed column widths to prevent overflow
+        table = Table(clean_data, colWidths=[1.8*inch, 1.2*inch, 0.6*inch, 2.4*inch])
         
-        # Style commands
         style_commands = [
-            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1f4e79')),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
             ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-            ('ALIGN', (2, 0), (-1, -1), 'CENTER'),  # Center align pod count
+            ('ALIGN', (2, 0), (-1, -1), 'CENTER'),  # Center pods column
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
             ('FONTSIZE', (0, 0), (-1, 0), 10),
-            ('FONTSIZE', (0, 1), (-1, -1), 8),  # Smaller font for content
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('FONTSIZE', (0, 1), (-1, -1), 8),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
+            ('TOPPADDING', (0, 1), (-1, -1), 4),
+            ('BOTTOMPADDING', (0, 1), (-1, -1), 4),
+            ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#dee2e6')),
             ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.beige, colors.white])
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.HexColor('#f8f9fa'), colors.white])
         ]
         
-        # Add row coloring based on status
+        # Status-based coloring
         for i, row in enumerate(clean_data[1:], start=1):
             status = row[1]
             if 'UP' in status or 'ACCESSIBLE' in status:
-                style_commands.append(('BACKGROUND', (1, i), (1, i), colors.lightgreen))
+                style_commands.append(('BACKGROUND', (1, i), (1, i), colors.HexColor('#d4edda')))
             elif 'DOWN' in status or 'ERROR' in status or 'TIMEOUT' in status or 'UNREACHABLE' in status:
-                style_commands.append(('BACKGROUND', (1, i), (1, i), colors.lightcoral))
+                style_commands.append(('BACKGROUND', (1, i), (1, i), colors.HexColor('#f8d7da')))
             else:
-                style_commands.append(('BACKGROUND', (1, i), (1, i), colors.lightyellow))
+                style_commands.append(('BACKGROUND', (1, i), (1, i), colors.HexColor('#fff3cd')))
         
         table.setStyle(TableStyle(style_commands))
         return table
     
-    def _create_service_list_table(self, services):
-        """Create a table for service lists with 4 columns"""
+    def _create_professional_service_table(self, services):
+        """Create professional service list table"""
         if not services:
-            return Paragraph("No services in this category.", getSampleStyleSheet()['Normal'])
+            return Paragraph("<i>No services in this category.</i>", getSampleStyleSheet()['Normal'])
         
-        # Create data in columns of 4
-        data = [['Service Name', 'Service Name', 'Service Name', 'Service Name']]
+        # Create data in columns of 3 for better readability
+        data = [['Service Name', 'Service Name', 'Service Name']]
         
-        # Pad services list to make it divisible by 4
-        services_padded = services + [''] * (4 - len(services) % 4) if len(services) % 4 != 0 else services
+        # Wrap service names and group into rows
+        wrapped_services = [self._wrap_text(svc, 25) for svc in services]
         
-        # Group into rows of 4
-        for i in range(0, len(services_padded), 4):
-            row = services_padded[i:i+4]
-            if any(row):  # Only add non-empty rows
-                data.append(row)
+        # Pad to make divisible by 3
+        while len(wrapped_services) % 3 != 0:
+            wrapped_services.append('')
         
-        table = Table(data, colWidths=[1.8*inch, 1.8*inch, 1.8*inch, 1.8*inch])
+        # Group into rows of 3
+        for i in range(0, len(wrapped_services), 3):
+            row = wrapped_services[i:i+3]
+            data.append(row)
+        
+        table = Table(data, colWidths=[2.2*inch, 2.2*inch, 2.2*inch])
         table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1f4e79')),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
             ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
             ('FONTSIZE', (0, 0), (-1, 0), 10),
             ('FONTSIZE', (0, 1), (-1, -1), 8),
             ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
-            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('TOPPADDING', (0, 1), (-1, -1), 3),
+            ('BOTTOMPADDING', (0, 1), (-1, -1), 3),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor('#f8f9fa')),
+            ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#dee2e6')),
             ('VALIGN', (0, 0), (-1, -1), 'TOP')
         ]))
         
@@ -594,6 +701,11 @@ def check_basic_connectivity(basic_endpoints, namespace):
     return results
 
 def print_results(health_results, healthy_count, basic_results, services_no_selector, services_no_health_probe, services_no_ingress, suspended_services):
+    # Calculate overall health excluding suspended services
+    active_services = len(health_results) + len(basic_results)
+    accessible_count = sum(1 for r in basic_results if 'ACCESSIBLE' in r[1]) if basic_results else 0
+    total_healthy = healthy_count + accessible_count
+    
     # Health check results
     if health_results:
         total_endpoints = len(health_results)
@@ -609,10 +721,14 @@ def print_results(health_results, healthy_count, basic_results, services_no_sele
         print(f"\n{C.B}🌐 Basic Connectivity Results{C.E}")
         print(tabulate(basic_results, headers=['Service', 'Status', 'Total Pods', 'Faulty Pods'], tablefmt='simple'))
         
-        accessible_count = sum(1 for r in basic_results if 'ACCESSIBLE' in r[1])
-        total_basic = len(basic_results)
-        basic_success_rate = (accessible_count/total_basic)*100
-        print(f"\n{C.B}Connectivity Stats:{C.E} {C.G}{accessible_count}/{total_basic} accessible{C.E} ({basic_success_rate:.0f}%)")
+        basic_success_rate = (accessible_count/len(basic_results))*100
+        print(f"\n{C.B}Connectivity Stats:{C.E} {C.G}{accessible_count}/{len(basic_results)} accessible{C.E} ({basic_success_rate:.0f}%)")
+    
+    # Overall system health (excluding suspended services)
+    if active_services > 0:
+        overall_health_rate = (total_healthy / active_services) * 100
+        print(f"\n{C.B}Overall System Health:{C.E} {C.G}{total_healthy}/{active_services} operational{C.E} ({overall_health_rate:.1f}%)")
+        print(f"{C.B}(Suspended services excluded from health calculation){C.E}")
     
     # Services categorization - SHOW ALL SERVICES (NO TRUNCATION)
     if any([suspended_services, services_no_selector, services_no_health_probe, services_no_ingress]):
@@ -638,15 +754,18 @@ def print_results(health_results, healthy_count, basic_results, services_no_sele
             for svc in services_no_ingress:  # Show ALL services
                 print(f"  • {svc}")
     
-    # Overall health status
-    if health_results:
-        success_rate = (healthy_count/len(health_results))*100
-        if success_rate >= 90:
-            print(f"\n{C.G}🎉 System healthy{C.E}")
-        elif success_rate >= 70:
+    # Overall health status (based on active services only)
+    if active_services > 0:
+        if overall_health_rate >= 95:
+            print(f"\n{C.G}🎉 System operating excellently{C.E}")
+        elif overall_health_rate >= 85:
+            print(f"\n{C.G}✅ System healthy{C.E}")
+        elif overall_health_rate >= 70:
             print(f"\n{C.Y}⚠️  Some issues detected{C.E}")
         else:
             print(f"\n{C.R}🚨 Multiple services down{C.E}")
+    else:
+        print(f"\n{C.Y}⚠️  No active services to monitor{C.E}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="K8s health check monitor")

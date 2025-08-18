@@ -329,7 +329,7 @@ class HealthCheckReport:
         )
         
         # Process data with consistent formatting
-        clean_data = [['Service', 'Status', 'Pods', 'Faulty Pods & Reasons']]
+        clean_data = [['Service', 'Status', 'Pods', 'Root Cause Analysis']]
         
         for row in results:
             clean_row = []
@@ -345,9 +345,9 @@ class HealthCheckReport:
                     clean_cell = Paragraph(clean_cell, content_style)
                 elif i == 2:  # Pod count - use Paragraph for consistency
                     clean_cell = Paragraph(clean_cell, content_style)
-                elif i == 3:  # Faulty pods - structured format
-                    formatted_pods = self._format_pod_details_for_pdf(clean_cell)
-                    clean_cell = Paragraph(formatted_pods, pod_style)
+                elif i == 3:  # Root cause analysis - structured format
+                    formatted_analysis = self._format_root_cause_for_pdf(clean_cell)
+                    clean_cell = Paragraph(formatted_analysis, pod_style)
                 
                 clean_row.append(clean_cell)
             clean_data.append(clean_row)
@@ -367,7 +367,7 @@ class HealthCheckReport:
             ('ALIGN', (0, 1), (0, -1), 'LEFT'),    # Service names left
             ('ALIGN', (1, 1), (1, -1), 'CENTER'),  # Status center
             ('ALIGN', (2, 1), (2, -1), 'CENTER'),  # Pod count center
-            ('ALIGN', (3, 1), (3, -1), 'LEFT'),    # Faulty pods left
+            ('ALIGN', (3, 1), (3, -1), 'LEFT'),    # Root cause left
             
             # Consistent padding - reduced for professional look
             ('TOPPADDING', (0, 0), (-1, 0), 8),
@@ -400,12 +400,12 @@ class HealthCheckReport:
         table.setStyle(TableStyle(style_commands))
         return table
     
-    def _format_pod_details_for_pdf(self, pod_text):
-        """Format pod details with reasons for PDF with consistent professional formatting"""
-        if ':' not in pod_text:
-            return pod_text
+    def _format_root_cause_for_pdf(self, analysis_text):
+        """Format root cause analysis for PDF with consistent professional formatting"""
+        if ':' not in analysis_text:
+            return analysis_text
         
-        parts = pod_text.split(':', 1)
+        parts = analysis_text.split(':', 1)
         count_part = parts[0]
         details_part = parts[1].strip()
         
@@ -413,24 +413,24 @@ class HealthCheckReport:
         if details_part.lower() in ['none', ''] or count_part == '0':
             return f"<b>{count_part}:</b> None"
         
-        # Split pod details and format each on a separate line
-        pod_details = []
+        # Split analysis details and format each on a separate line
+        analysis_details = []
         if ';' in details_part:
-            # Multiple pods with details
-            for pod_info in details_part.split(';'):
-                pod_info = pod_info.strip()
-                if pod_info:
-                    pod_details.append(pod_info)
+            # Multiple pods with analysis
+            for analysis_info in details_part.split(';'):
+                analysis_info = analysis_info.strip()
+                if analysis_info:
+                    analysis_details.append(analysis_info)
         else:
-            # Single pod or simple list
-            pod_details = [details_part]
+            # Single pod or simple analysis
+            analysis_details = [details_part]
         
-        if not pod_details:
+        if not analysis_details:
             return f"<b>{count_part}:</b> None"
         
         # Create compact structured format
         formatted_result = f"<b>{count_part}:</b><br/>"
-        formatted_result += "<br/>".join(f"• {detail}" for detail in pod_details)
+        formatted_result += "<br/>".join(f"• {detail}" for detail in analysis_details)
         
         return formatted_result
     
@@ -481,34 +481,125 @@ class HealthCheckReport:
         
         return table
 
-def get_pod_logs(v1, namespace, pod_name, container_name=None, tail_lines=10):
-    """Get recent logs from a pod"""
+def analyze_pod_logs(v1, namespace, pod_name, container_name=None):
+    """Intelligently analyze pod logs to find root cause of failures"""
     try:
+        # Get more logs for better analysis (last 50 lines)
         if container_name:
             log_response = v1.read_namespaced_pod_log(
                 name=pod_name,
                 namespace=namespace,
                 container=container_name,
-                tail_lines=tail_lines
+                tail_lines=50
             )
         else:
             log_response = v1.read_namespaced_pod_log(
                 name=pod_name,
                 namespace=namespace,
-                tail_lines=tail_lines
+                tail_lines=50
             )
         
-        # Get the last few lines and clean them up
         log_lines = log_response.strip().split('\n')
-        return log_lines[-3:] if len(log_lines) >= 3 else log_lines
+        
+        # Pattern matching for common failure causes
+        error_patterns = {
+            'OutOfMemoryError': [
+                r'java\.lang\.OutOfMemoryError',
+                r'OutOfMemoryError',
+                r'out of memory',
+                r'Cannot allocate memory'
+            ],
+            'Port Already in Use': [
+                r'Port \d+ is already in use',
+                r'Address already in use',
+                r'bind.*address already in use'
+            ],
+            'Database Connection Failed': [
+                r'Connection refused.*\d+',
+                r'Unable to connect to database',
+                r'Database connection failed',
+                r'Connection timeout',
+                r'No route to host.*database'
+            ],
+            'Configuration Error': [
+                r'Configuration.*error',
+                r'Invalid configuration',
+                r'Missing.*configuration',
+                r'Unable to load config'
+            ],
+            'Permission Denied': [
+                r'Permission denied',
+                r'Access denied',
+                r'Forbidden',
+                r'insufficient.*permission'
+            ],
+            'File Not Found': [
+                r'No such file or directory',
+                r'FileNotFoundException',
+                r'File not found'
+            ],
+            'Network Issue': [
+                r'Connection refused',
+                r'Network.*unreachable',
+                r'Timeout.*connection',
+                r'DNS.*resolution.*failed'
+            ],
+            'Application Startup Failed': [
+                r'Application failed to start',
+                r'Failed to start.*application',
+                r'Startup.*failed',
+                r'Unable to start.*server'
+            ]
+        }
+        
+        # Analyze logs for specific patterns
+        for log_line in reversed(log_lines[-20:]):  # Check last 20 lines
+            log_line_lower = log_line.lower()
+            
+            for error_type, patterns in error_patterns.items():
+                for pattern in patterns:
+                    if re.search(pattern, log_line, re.IGNORECASE):
+                        # Extract relevant part of the error message
+                        if len(log_line) > 100:
+                            # Find the error part and extract context
+                            error_start = max(0, log_line.lower().find(pattern.lower()) - 20)
+                            error_end = min(len(log_line), error_start + 80)
+                            extracted_error = log_line[error_start:error_end].strip()
+                        else:
+                            extracted_error = log_line.strip()
+                        
+                        return f"{error_type}: {extracted_error}"
+        
+        # If no specific pattern found, look for general error keywords
+        for log_line in reversed(log_lines[-10:]):  # Check last 10 lines
+            if any(keyword in log_line.lower() for keyword in ['error', 'exception', 'failed', 'fatal']):
+                if len(log_line) > 100:
+                    # Extract key part of the error
+                    error_part = log_line[:100] + "..."
+                else:
+                    error_part = log_line.strip()
+                return f"General Error: {error_part}"
+        
+        # If still no specific error found, return generic message
+        return "Restart loop detected - no specific error pattern identified"
+        
     except Exception as e:
-        return [f"Log retrieval failed: {str(e)}"]
+        return f"Log analysis failed: {str(e)}"
+
+def get_pod_exit_code(pod):
+    """Get the exit code from a terminated container"""
+    if pod.status.container_statuses:
+        for container in pod.status.container_statuses:
+            if (container.state and container.state.terminated and 
+                container.state.terminated.exit_code is not None):
+                return container.state.terminated.exit_code
+    return None
 
 def analyze_pod_fault(pod, v1, namespace):
-    """Analyze a pod to determine fault reason and collect relevant logs"""
+    """Analyze a pod to determine fault reason with intelligent log analysis"""
     pod_name = pod.metadata.name
     reasons = []
-    logs = []
+    root_cause = None
     
     # Check pod phase
     if pod.status.phase == 'Failed':
@@ -527,46 +618,51 @@ def analyze_pod_fault(pod, v1, namespace):
         for container in pod.status.container_statuses:
             container_name = container.name
             
-            # Check for crash loop back off
+            # Check for crash loop back off - get intelligent analysis
             if (container.state and container.state.waiting and 
                 container.state.waiting.reason == 'CrashLoopBackOff'):
                 reasons.append(f"Container {container_name}: CrashLoopBackOff")
-                # Get logs for crashing container
-                container_logs = get_pod_logs(v1, namespace, pod_name, container_name, 5)
-                logs.extend([f"[{container_name}] {log}" for log in container_logs])
+                # Get intelligent log analysis for crashing container
+                root_cause = analyze_pod_logs(v1, namespace, pod_name, container_name)
+                
+                # Also check exit code
+                exit_code = get_pod_exit_code(pod)
+                if exit_code:
+                    root_cause += f" (Exit Code: {exit_code})"
             
             # Check for image pull errors
             elif (container.state and container.state.waiting and 
                   container.state.waiting.reason in ['ImagePullBackOff', 'ErrImagePull']):
                 reasons.append(f"Container {container_name}: {container.state.waiting.reason}")
                 if container.state.waiting.message:
-                    reasons.append(f"Image Error: {container.state.waiting.message}")
+                    root_cause = f"Image Error: {container.state.waiting.message}"
             
             # Check for config errors
             elif (container.state and container.state.waiting and 
                   container.state.waiting.reason == 'CreateContainerConfigError'):
                 reasons.append(f"Container {container_name}: Config Error")
                 if container.state.waiting.message:
-                    reasons.append(f"Config: {container.state.waiting.message}")
+                    root_cause = f"Config Error: {container.state.waiting.message}"
             
             # Check for high restart count with current issues
             elif container.restart_count > 3 and not container.ready:
                 reasons.append(f"Container {container_name}: High restarts ({container.restart_count}), not ready")
-                # Get logs for frequently restarting container
-                container_logs = get_pod_logs(v1, namespace, pod_name, container_name, 3)
-                logs.extend([f"[{container_name}] {log}" for log in container_logs])
+                # Get intelligent log analysis for frequently restarting container
+                root_cause = analyze_pod_logs(v1, namespace, pod_name, container_name)
     
     # Check pod conditions for additional insights
-    if pod.status.conditions:
+    if pod.status.conditions and not root_cause:
         for condition in pod.status.conditions:
             if condition.status == 'False' and condition.type in ['Ready', 'ContainersReady']:
                 if condition.reason and condition.reason not in [r.split(':')[-1].strip() for r in reasons]:
                     reasons.append(f"{condition.type}: {condition.reason}")
+                    if condition.message:
+                        root_cause = f"Readiness Issue: {condition.message}"
     
-    return reasons, logs
+    return reasons, root_cause
 
 def get_pod_stats(pods, selector, v1, namespace):
-    """Get enhanced pod statistics for a service with fault analysis"""
+    """Get enhanced pod statistics for a service with intelligent fault analysis"""
     matching_pods = [pod for pod in pods.items 
                     if all((pod.metadata.labels or {}).get(k) == v for k, v in selector.items())]
     
@@ -600,19 +696,14 @@ def get_pod_stats(pods, selector, v1, namespace):
                     is_faulty = True
         
         if is_faulty:
-            # Get detailed fault analysis
-            reasons, logs = analyze_pod_fault(pod, v1, namespace)
-            
-            # Format the detailed information
-            pod_detail = f"{pod_name}"
-            if reasons:
-                pod_detail += f" (Reasons: {'; '.join(reasons[:2])})"  # Limit to first 2 reasons for brevity
+            # Get intelligent fault analysis
+            reasons, root_cause = analyze_pod_fault(pod, v1, namespace)
             
             faulty_pod_details.append({
                 'name': pod_name,
                 'reasons': reasons,
-                'logs': logs,
-                'detail': pod_detail
+                'root_cause': root_cause,
+                'detail': f"{pod_name}: {root_cause}" if root_cause else f"{pod_name}: {'; '.join(reasons[:1])}"
             })
     
     return total_pods, faulty_pod_details, matching_pods
@@ -706,60 +797,65 @@ def get_health_check_endpoints(namespace):
             services_no_ingress,
             suspended_services)
 
-def format_faulty_pod_display(faulty_pod_details):
-    """Format faulty pod details for console display"""
+def format_root_cause_display(faulty_pod_details):
+    """Format root cause analysis for console display"""
     if not faulty_pod_details:
         return f"{C.G}0: None{C.E}"
     
     fault_count = len(faulty_pod_details)
     
-    # For console display, show pod names with abbreviated reasons
+    # For console display, show pod names with root cause
     display_parts = []
     for pod_detail in faulty_pod_details:
         pod_name = pod_detail['name']
-        reasons = pod_detail['reasons']
+        root_cause = pod_detail.get('root_cause', 'Unknown issue')
         
-        if reasons:
-            # Show first reason in abbreviated form
-            main_reason = reasons[0].split(':')[-1].strip() if ':' in reasons[0] else reasons[0]
-            display_parts.append(f"{pod_name} ({main_reason})")
+        if root_cause:
+            # Truncate long root causes for console
+            if len(root_cause) > 60:
+                short_cause = root_cause[:60] + "..."
+            else:
+                short_cause = root_cause
+            display_parts.append(f"{pod_name} → {short_cause}")
         else:
             display_parts.append(pod_name)
     
     # Limit display for console readability
-    if len(display_parts) > 3:
-        shown = display_parts[:3]
-        remaining = len(display_parts) - 3
+    if len(display_parts) > 2:
+        shown = display_parts[:2]
+        remaining = len(display_parts) - 2
         display_text = f"{C.R}{fault_count}: {'; '.join(shown)}... (+{remaining} more){C.E}"
     else:
         display_text = f"{C.R}{fault_count}: {'; '.join(display_parts)}{C.E}"
     
     return display_text
 
-def format_faulty_pod_for_pdf(faulty_pod_details):
-    """Format faulty pod details for PDF with reasons and logs"""
+def format_root_cause_for_pdf(faulty_pod_details):
+    """Format root cause analysis for PDF with detailed information"""
     if not faulty_pod_details:
         return "0: None"
     
     fault_count = len(faulty_pod_details)
     
-    # For PDF, include more detailed information
+    # For PDF, include detailed root cause analysis
     display_parts = []
     for pod_detail in faulty_pod_details:
         pod_name = pod_detail['name']
-        reasons = pod_detail['reasons']
+        root_cause = pod_detail.get('root_cause', 'Unknown issue')
         
-        if reasons:
-            # Include top 2 reasons for PDF
-            reason_text = '; '.join(reasons[:2])
-            display_parts.append(f"{pod_name} (Reasons: {reason_text})")
+        if root_cause:
+            display_parts.append(f"{pod_name} → {root_cause}")
         else:
-            display_parts.append(pod_name)
+            reasons = pod_detail.get('reasons', [])
+            if reasons:
+                display_parts.append(f"{pod_name} → {'; '.join(reasons[:1])}")
+            else:
+                display_parts.append(pod_name)
     
     return f"{fault_count}: " + '; '.join(display_parts)
 
 def check_health_endpoints(endpoints, namespace):
-    """Check health endpoints with enhanced fault reporting"""
+    """Check health endpoints with enhanced fault reporting and error codes"""
     if not endpoints:
         return [], 0
     
@@ -810,40 +906,40 @@ def check_health_endpoints(endpoints, namespace):
                     print(f"{C.Y}⚠️  {status}{C.E}")
                     health_status = f'🟡 {status}'
             else:
+                # Show specific HTTP error codes
                 print(f"{C.R}❌ HTTP {response.status_code}{C.E}")
-                health_status = '🔴 ERROR'
+                health_status = f'🔴 HTTP {response.status_code}'
             
-            # Enhanced faulty pod display
-            faulty_display_console = format_faulty_pod_display(faulty_pod_details)
-            faulty_display_pdf = format_faulty_pod_for_pdf(faulty_pod_details)
+            # Enhanced root cause display
+            root_cause_display_console = format_root_cause_display(faulty_pod_details)
+            root_cause_display_pdf = format_root_cause_for_pdf(faulty_pod_details)
             
-            results.append([service_name, health_status, str(total_pods), faulty_display_pdf])
+            results.append([service_name, health_status, str(total_pods), root_cause_display_pdf])
             
-            # Show detailed fault information if verbose mode or critical issues
+            # Show intelligent fault analysis if verbose mode or critical issues
             if faulty_pod_details:
-                for pod_detail in faulty_pod_details[:2]:  # Show first 2 faulty pods in detail
-                    if pod_detail['reasons']:
-                        print(f"    └─ {pod_detail['name']}: {'; '.join(pod_detail['reasons'][:1])}")
-                    if pod_detail['logs'] and any('CrashLoopBackOff' in r for r in pod_detail['reasons']):
-                        print(f"       Recent log: {pod_detail['logs'][-1][:100]}...")
+                for pod_detail in faulty_pod_details[:1]:  # Show first faulty pod in detail
+                    root_cause = pod_detail.get('root_cause')
+                    if root_cause:
+                        print(f"    └─ 🔍 {pod_detail['name']}: {root_cause}")
             
         except requests.exceptions.Timeout:
             print(f"{C.R}⏱️  TIMEOUT{C.E}")
-            faulty_display = format_faulty_pod_for_pdf(faulty_pod_details)
-            results.append([service_name, '🔴 TIMEOUT', str(total_pods), faulty_display])
+            root_cause_display = format_root_cause_for_pdf(faulty_pod_details)
+            results.append([service_name, '🔴 TIMEOUT', str(total_pods), root_cause_display])
         except requests.exceptions.ConnectionError:
             print(f"{C.R}🚫 UNREACHABLE{C.E}")
-            faulty_display = format_faulty_pod_for_pdf(faulty_pod_details)
-            results.append([service_name, '🔴 UNREACHABLE', str(total_pods), faulty_display])
+            root_cause_display = format_root_cause_for_pdf(faulty_pod_details)
+            results.append([service_name, '🔴 UNREACHABLE', str(total_pods), root_cause_display])
         except Exception as e:
-            print(f"{C.R}💥 ERROR{C.E}")
-            faulty_display = format_faulty_pod_for_pdf(faulty_pod_details)
-            results.append([service_name, '🔴 ERROR', str(total_pods), faulty_display])
+            print(f"{C.R}💥 ERROR: {str(e)}{C.E}")
+            root_cause_display = format_root_cause_for_pdf(faulty_pod_details)
+            results.append([service_name, f'🔴 ERROR: {str(e)}', str(total_pods), root_cause_display])
     
     return results, healthy_count
 
 def check_basic_connectivity(basic_endpoints, namespace):
-    """Check basic connectivity for services without health endpoints with enhanced fault reporting"""
+    """Check basic connectivity for services without health endpoints with enhanced error reporting"""
     if not basic_endpoints:
         return []
     
@@ -866,35 +962,40 @@ def check_basic_connectivity(basic_endpoints, namespace):
             if response.status_code in [200, 301, 302, 403]:  # Accessible responses
                 print(f"{C.G}✅ ACCESSIBLE{C.E}")
                 connectivity_status = '🟢 ACCESSIBLE'
-            elif response.status_code in [404]:
-                print(f"{C.Y}⚠️  NOT FOUND{C.E}")
-                connectivity_status = '🟡 NOT FOUND'
+            elif response.status_code == 404:
+                print(f"{C.Y}⚠️  HTTP 404{C.E}")
+                connectivity_status = '🟡 HTTP 404'
+            elif response.status_code == 503:
+                print(f"{C.R}❌ HTTP 503{C.E}")
+                connectivity_status = '🔴 HTTP 503'
             else:
+                # Show specific HTTP error codes
                 print(f"{C.R}❌ HTTP {response.status_code}{C.E}")
                 connectivity_status = f'🔴 HTTP {response.status_code}'
             
-            # Enhanced faulty pod display
-            faulty_display = format_faulty_pod_for_pdf(faulty_pod_details)
-            results.append([service_name, connectivity_status, str(total_pods), faulty_display])
+            # Enhanced root cause display
+            root_cause_display = format_root_cause_for_pdf(faulty_pod_details)
+            results.append([service_name, connectivity_status, str(total_pods), root_cause_display])
             
-            # Show detailed fault information for critical issues
+            # Show intelligent fault analysis for critical issues
             if faulty_pod_details:
                 for pod_detail in faulty_pod_details[:1]:  # Show first faulty pod in detail
-                    if pod_detail['reasons']:
-                        print(f"    └─ {pod_detail['name']}: {pod_detail['reasons'][0]}")
+                    root_cause = pod_detail.get('root_cause')
+                    if root_cause:
+                        print(f"    └─ 🔍 {pod_detail['name']}: {root_cause}")
             
         except requests.exceptions.Timeout:
             print(f"{C.R}⏱️  TIMEOUT{C.E}")
-            faulty_display = format_faulty_pod_for_pdf(faulty_pod_details)
-            results.append([service_name, '🔴 TIMEOUT', str(total_pods), faulty_display])
+            root_cause_display = format_root_cause_for_pdf(faulty_pod_details)
+            results.append([service_name, '🔴 TIMEOUT', str(total_pods), root_cause_display])
         except requests.exceptions.ConnectionError:
             print(f"{C.R}🚫 UNREACHABLE{C.E}")
-            faulty_display = format_faulty_pod_for_pdf(faulty_pod_details)
-            results.append([service_name, '🔴 UNREACHABLE', str(total_pods), faulty_display])
+            root_cause_display = format_root_cause_for_pdf(faulty_pod_details)
+            results.append([service_name, '🔴 UNREACHABLE', str(total_pods), root_cause_display])
         except Exception as e:
-            print(f"{C.R}💥 ERROR{C.E}")
-            faulty_display = format_faulty_pod_for_pdf(faulty_pod_details)
-            results.append([service_name, '🔴 ERROR', str(total_pods), faulty_display])
+            print(f"{C.R}💥 ERROR: {str(e)}{C.E}")
+            root_cause_display = format_root_cause_for_pdf(faulty_pod_details)
+            results.append([service_name, f'🔴 ERROR: {str(e)}', str(total_pods), root_cause_display])
     
     return results
 
@@ -910,14 +1011,14 @@ def print_results(health_results, healthy_count, basic_results, services_no_sele
         success_rate = (healthy_count/total_endpoints)*100
         
         print(f"\n{C.B}📊 Health Check Results{C.E}")
-        print(tabulate(health_results, headers=['Service', 'Status', 'Total Pods', 'Faulty Pods & Reasons'], tablefmt='simple'))
+        print(tabulate(health_results, headers=['Service', 'Status', 'Total Pods', 'Root Cause Analysis'], tablefmt='simple'))
         
         print(f"\n{C.B}Health Stats:{C.E} {C.G}{healthy_count}/{total_endpoints} healthy{C.E} ({success_rate:.0f}%)")
     
     # Basic connectivity results
     if basic_results:
         print(f"\n{C.B}🌐 Basic Connectivity Results{C.E}")
-        print(tabulate(basic_results, headers=['Service', 'Status', 'Total Pods', 'Faulty Pods & Reasons'], tablefmt='simple'))
+        print(tabulate(basic_results, headers=['Service', 'Status', 'Total Pods', 'Root Cause Analysis'], tablefmt='simple'))
         
         basic_success_rate = (accessible_count/len(basic_results))*100
         print(f"\n{C.B}Connectivity Stats:{C.E} {C.G}{accessible_count}/{len(basic_results)} accessible{C.E} ({basic_success_rate:.0f}%)")
@@ -966,14 +1067,14 @@ def print_results(health_results, healthy_count, basic_results, services_no_sele
         print(f"\n{C.Y}⚠️  No active services to monitor{C.E}")
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="K8s health check monitor with enhanced fault analysis")
+    parser = argparse.ArgumentParser(description="K8s health check monitor with intelligent fault analysis")
     parser.add_argument("namespace", help="Kubernetes namespace")
     parser.add_argument("--output-format", choices=['console', 'pdf', 'both'], 
                        default='console', help="Output format (default: console)")
     parser.add_argument("--output-dir", default="reports", 
                        help="Directory for reports (default: reports)")
     parser.add_argument("--verbose", "-v", action="store_true",
-                       help="Show detailed logs for faulty pods")
+                       help="Show detailed fault analysis for all pods")
     args = parser.parse_args()
     
     try:

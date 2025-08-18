@@ -962,10 +962,17 @@ def check_health_endpoints(endpoints, namespace):
                         status = 'UP'
                     
                 except json.JSONDecodeError:
-                    # Check if it's a valid error response that indicates service is up
+                    # Check if it's a structured error response that indicates service is up and responding
+                    # Examples: Spring Boot Whitelabel Error Page, Express.js errors, etc.
                     response_text = response.text.lower()
-                    if any(phrase in response_text for phrase in ['cannot get /', 'not found', 'method not allowed']):
-                        # Service is responding with valid errors - it's UP
+                    if any(phrase in response_text for phrase in [
+                        'cannot get /', 'not found', 'method not allowed',
+                        'whitelabel error page', 'this application has no explicit mapping',
+                        'there was an unexpected error', 'no such label',
+                        'error 404', 'page not found', 'resource not found',
+                        'spring boot', 'express', 'nginx', 'apache'  # Framework/server indicators
+                    ]):
+                        # Service is responding with structured errors - it's UP
                         status = 'UP'
                     else:
                         # Not JSON but 200 OK means service is up
@@ -1055,10 +1062,17 @@ def check_basic_connectivity(basic_endpoints, namespace):
                 results.append([service_name, connectivity_status, str(total_pods), restart_display])
                 
             elif response.status_code == 404:
-                # Check if 404 response indicates service is actually up (like "cannot GET /")
+                # Check if 404 response indicates service is actually up (structured error responses)
+                # Examples: Spring Boot Whitelabel Error Page, Express.js 404s, etc.
                 response_text = response.text.lower()
-                if any(phrase in response_text for phrase in ['cannot get /', 'not found', 'method not allowed']):
-                    print(f"{C.G}✅ ACCESSIBLE (404 response){C.E}")
+                if any(phrase in response_text for phrase in [
+                    'cannot get /', 'not found', 'method not allowed',
+                    'whitelabel error page', 'this application has no explicit mapping',
+                    'there was an unexpected error', 'no such label',
+                    'error 404', 'page not found', 'resource not found',
+                    'spring boot', 'tomcat', 'jetty', 'express', 'nginx'  # Framework/server indicators
+                ]):
+                    print(f"{C.G}✅ ACCESSIBLE (structured 404){C.E}")
                     connectivity_status = '🟢 ACCESSIBLE'
                     # Service is responding - only show restart count
                     restart_display = format_restart_count_for_pdf(faulty_pod_details)

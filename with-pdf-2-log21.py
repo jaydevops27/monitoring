@@ -185,12 +185,13 @@ class HealthCheckReport:
         """Create a clean status overview box with enhanced service up detection"""
         active_services = len(health_results) + len(basic_results)
         
-        # Count accessible services (including those showing service up indicators)
+        # Count accessible services (including those showing Whitelabel Error Page or other UP indicators)
         accessible_count = 0
         if basic_results:
             for result in basic_results:
                 status = result[1]
-                if 'ACCESSIBLE' in status or 'UP' in status:
+                # Count as accessible if status contains ACCESSIBLE, UP, or Whitelabel
+                if any(keyword in status for keyword in ['ACCESSIBLE', 'UP', 'Whitelabel']):
                     accessible_count += 1
         
         total_healthy = healthy_count + accessible_count
@@ -257,12 +258,13 @@ class HealthCheckReport:
                          len(services_no_selector) + len(services_no_health_probe) + 
                          len(services_no_ingress))
         
-        # Count accessible services (including those showing service up indicators)
+        # Count accessible services (including those showing Whitelabel Error Page or other UP indicators)
         accessible_count = 0
         if basic_results:
             for result in basic_results:
                 status = result[1]
-                if 'ACCESSIBLE' in status or 'UP' in status:
+                # Count as accessible if status contains ACCESSIBLE, UP, or Whitelabel
+                if any(keyword in status for keyword in ['ACCESSIBLE', 'UP', 'Whitelabel']):
                     accessible_count += 1
         
         total_healthy = healthy_count + accessible_count
@@ -405,9 +407,10 @@ class HealthCheckReport:
             else:
                 status_text = str(row[1])
                 
-            if 'UP' in status_text or 'ACCESSIBLE' in status_text:
+            # Green for UP, ACCESSIBLE, or Whitelabel responses
+            if any(keyword in status_text for keyword in ['UP', 'ACCESSIBLE', 'Whitelabel']):
                 style_commands.append(('BACKGROUND', (1, i), (1, i), colors.HexColor('#E8F5E8')))
-            elif 'DOWN' in status_text or 'ERROR' in status_text or 'TIMEOUT' in status_text or 'UNREACHABLE' in status_text:
+            elif any(keyword in status_text for keyword in ['DOWN', 'ERROR', 'TIMEOUT', 'UNREACHABLE']):
                 style_commands.append(('BACKGROUND', (1, i), (1, i), colors.HexColor('#FDE8E8')))
             else:
                 style_commands.append(('BACKGROUND', (1, i), (1, i), colors.HexColor('#FFF8E1')))
@@ -953,7 +956,7 @@ def check_health_endpoints(endpoints, namespace):
     
     return results, healthy_count
 
-def check_basic_connectivity(basic_endpoints, namespace):
+def check_basic_connectivity(basic_endpoints, namespace, debug=False):
     """Check basic connectivity for services without health endpoints with enhanced service up detection"""
     if not basic_endpoints:
         return []
@@ -975,43 +978,58 @@ def check_basic_connectivity(basic_endpoints, namespace):
             response = requests.get(endpoint_url, timeout=5, verify=False, allow_redirects=True)
             response_text = response.text.lower()
             
-            # Check for indicators that service is UP even with error responses
-            service_up_indicators = [
-                'whitelabel error page',
+            # Debug output
+            if debug:
+                print(f"\n    🔍 DEBUG - Status: {response.status_code}")
+                print(f"    🔍 DEBUG - Response preview: {response_text[:200]}...")
+            
+            # Primary check: Whitelabel Error Page means service is UP
+            is_whitelabel_error = 'whitelabel error page' in response_text
+            
+            # Secondary checks for other service up indicators
+            other_service_indicators = [
                 'cannot get /',
                 'this application has no explicit mapping',
                 'there was an unexpected error',
                 'no such label',
-                'error 404',
-                'not found',
                 'fallback'
             ]
             
-            is_service_responding = any(indicator in response_text for indicator in service_up_indicators)
+            has_other_indicators = any(indicator in response_text for indicator in other_service_indicators)
             
+            # Service is responding if we see whitelabel error page OR other indicators
+            is_service_responding = is_whitelabel_error or has_other_indicators
+            
+            # Debug output for detection
+            if debug:
+                print(f"    🔍 DEBUG - Whitelabel detected: {is_whitelabel_error}")
+                print(f"    🔍 DEBUG - Other indicators: {has_other_indicators}")
+                print(f"    🔍 DEBUG - Service responding: {is_service_responding}")
+            
+            # Status determination logic
             if response.status_code == 200:
                 print(f"{C.G}✅ ACCESSIBLE{C.E}")
                 connectivity_status = '🟢 ACCESSIBLE'
-            elif response.status_code in [301, 302, 403]:  # Accessible responses
+            elif response.status_code in [301, 302, 403]:  # Standard accessible responses
                 print(f"{C.G}✅ ACCESSIBLE{C.E}")
                 connectivity_status = '🟢 ACCESSIBLE'
-            elif response.status_code == 404 and is_service_responding:
-                # 404 with service up indicators means service is UP
+            elif is_whitelabel_error:
+                # Explicitly handle Whitelabel Error Page as UP
+                print(f"{C.G}✅ UP (Whitelabel Error Page){C.E}")
+                connectivity_status = '🟢 UP (Whitelabel Error Page)'
+            elif is_service_responding:
+                # Other service indicators detected
                 print(f"{C.G}✅ UP (Service Responding){C.E}")
                 connectivity_status = '🟢 UP (Service Responding)'
-            elif is_service_responding:
-                # Any other status code but service is clearly responding
-                print(f"{C.G}✅ UP (Service Responding){C.E}")
-                connectivity_status = f'🟢 UP (Service Responding)'
             elif response.status_code == 404:
-                # Regular 404 without service indicators
+                # True 404 without any service indicators
                 print(f"{C.Y}⚠️  HTTP 404{C.E}")
                 connectivity_status = '🟡 HTTP 404'
             elif response.status_code == 503:
                 print(f"{C.R}❌ HTTP 503{C.E}")
                 connectivity_status = '🔴 HTTP 503'
             else:
-                # Show specific HTTP error codes for non-responding services
+                # Other HTTP error codes for non-responding services
                 print(f"{C.R}❌ HTTP {response.status_code}{C.E}")
                 connectivity_status = f'🔴 HTTP {response.status_code}'
             
@@ -1045,12 +1063,13 @@ def print_results(health_results, healthy_count, basic_results, services_no_sele
     # Calculate overall health excluding suspended services
     active_services = len(health_results) + len(basic_results)
     
-    # Count accessible services (including those showing service up indicators)
+    # Count accessible services (including those showing Whitelabel Error Page or other UP indicators)
     accessible_count = 0
     if basic_results:
         for result in basic_results:
             status = result[1]
-            if 'ACCESSIBLE' in status or 'UP' in status:
+            # Count as accessible if status contains ACCESSIBLE, UP, or Whitelabel
+            if any(keyword in status for keyword in ['ACCESSIBLE', 'UP', 'Whitelabel']):
                 accessible_count += 1
     
     total_healthy = healthy_count + accessible_count
@@ -1125,6 +1144,8 @@ if __name__ == "__main__":
                        help="Directory for reports (default: reports)")
     parser.add_argument("--verbose", "-v", action="store_true",
                        help="Show detailed fault analysis for all pods")
+    parser.add_argument("--debug", "-d", action="store_true",
+                       help="Show response content for debugging service detection")
     args = parser.parse_args()
     
     try:
@@ -1135,7 +1156,7 @@ if __name__ == "__main__":
         health_results, healthy_count = check_health_endpoints(health_endpoints, args.namespace)
         
         # Check basic connectivity for services without health probes
-        basic_results = check_basic_connectivity(basic_endpoints, args.namespace)
+        basic_results = check_basic_connectivity(basic_endpoints, args.namespace, args.debug)
         
         # Console output
         if args.output_format in ['console', 'both']:

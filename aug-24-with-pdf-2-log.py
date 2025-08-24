@@ -876,6 +876,38 @@ def check_health_endpoints(endpoints, namespace):
         try:
             response = requests.get(endpoint_url, timeout=8, verify=False, headers={'Accept': 'application/json'})
             
+            # Check if service is reachable based on response content (for Spring Boot services)
+            is_service_reachable = False
+            response_indicators = []
+            
+            try:
+                response_text = response.text
+                response_text_lower = response_text.lower()
+                
+                # Spring Boot detection patterns
+                spring_boot_patterns = [
+                    "whitelabel error page",
+                    "whitelabel",
+                    "this application has no explicit mapping",
+                    "spring boot",
+                    "no message available",
+                    "type=not found, status=404"
+                ]
+                
+                for pattern in spring_boot_patterns:
+                    if pattern in response_text_lower:
+                        is_service_reachable = True
+                        response_indicators.append("Spring Boot")
+                        break
+                
+                # If response has substantial content, it's probably a service responding
+                if not is_service_reachable and len(response_text.strip()) > 50:
+                    is_service_reachable = True
+                    response_indicators.append("Service Response")
+                    
+            except Exception:
+                response_text = ""
+            
             if response.status_code == 200:
                 try:
                     health_data = response.json()
@@ -905,8 +937,20 @@ def check_health_endpoints(endpoints, namespace):
                 else:
                     print(f"{C.Y}⚠️  {status}{C.E}")
                     health_status = f'🟡 {status}'
+                    
+            elif response.status_code == 404 and is_service_reachable:
+                # Service is responding with 404 but it's actually reachable (Spring Boot case)
+                indicator_text = f" ({response_indicators[0]})" if response_indicators else ""
+                print(f"{C.G}✅ UP{indicator_text}{C.E}")
+                health_status, healthy_count = f'🟢 UP{indicator_text}', healthy_count + 1
+                
+            elif response.status_code in [401, 403] and is_service_reachable:
+                # Authentication/authorization required but service is responding
+                print(f"{C.G}✅ UP (Auth Required){C.E}")
+                health_status, healthy_count = '🟢 UP (Auth Required)', healthy_count + 1
+                
             else:
-                # Show specific HTTP error codes
+                # Show specific HTTP error codes for non-reachable services
                 print(f"{C.R}❌ HTTP {response.status_code}{C.E}")
                 health_status = f'🔴 HTTP {response.status_code}'
             
@@ -917,7 +961,7 @@ def check_health_endpoints(endpoints, namespace):
             results.append([service_name, health_status, str(total_pods), root_cause_display_pdf])
             
             # Show intelligent fault analysis if verbose mode or critical issues
-            if faulty_pod_details:
+            if faulty_pod_details and not health_status.startswith('🟢'):
                 for pod_detail in faulty_pod_details[:1]:  # Show first faulty pod in detail
                     root_cause = pod_detail.get('root_cause')
                     if root_cause:

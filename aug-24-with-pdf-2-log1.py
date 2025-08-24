@@ -1007,47 +1007,72 @@ def check_basic_connectivity(basic_endpoints, namespace):
             is_service_reachable = False
             response_indicators = []
             
-            # Get response text for analysis
+            # Get response text for analysis - be more comprehensive
             try:
-                response_text = response.text.lower()
+                response_text = response.text
+                response_text_lower = response_text.lower()
                 
-                # Spring Boot service indicators (even with 404)
-                spring_boot_indicators = [
+                # More comprehensive service detection patterns
+                service_patterns = [
+                    # Spring Boot patterns
                     "whitelabel error page",
-                    "this application has no explicit mapping for /error",
+                    "whitelabel",
+                    "this application has no explicit mapping",
                     "spring boot",
-                    "no message available"
-                ]
-                
-                # General service response indicators
-                service_indicators = [
+                    "spring framework",
+                    "no message available",
+                    "type=not found, status=404",
+                    
+                    # Node.js/Express patterns - THIS WAS MISSING
+                    "cannot get",
+                    "cannot post",
+                    "cannot put", 
+                    "cannot delete",
+                    "express",
+                    
+                    # General web service patterns
+                    "<!doctype html>",
+                    "<html",
                     "nginx",
                     "apache",
-                    "service unavailable",
+                    "tomcat",
+                    "jetty",
+                    "error 404",
+                    "not found",
+                    "page not found",
+                    "resource not found",
+                    "server error",
                     "bad request",
+                    "method not allowed",
                     "unauthorized",
                     "forbidden"
                 ]
                 
-                # Check for Spring Boot indicators first (most specific)
-                for indicator in spring_boot_indicators:
-                    if indicator in response_text:
+                # Check for service patterns
+                for pattern in service_patterns:
+                    if pattern in response_text_lower:
                         is_service_reachable = True
-                        response_indicators.append("Spring Boot Service")
+                        if "spring" in pattern or "whitelabel" in pattern:
+                            response_indicators.append("Spring Boot")
+                        elif "cannot get" in pattern or "express" in pattern:
+                            response_indicators.append("Node.js/Express")
+                        elif "nginx" in pattern:
+                            response_indicators.append("Nginx")
+                        elif "apache" in pattern:
+                            response_indicators.append("Apache")
+                        else:
+                            response_indicators.append("Web Service")
                         break
                 
-                # Check for other service indicators
-                if not is_service_reachable:
-                    for indicator in service_indicators:
-                        if indicator in response_text:
-                            is_service_reachable = True
-                            response_indicators.append("Web Service")
-                            break
-                            
-            except Exception:
+                # If response has substantial content, it's probably a service responding
+                if not is_service_reachable and len(response_text.strip()) > 20:
+                    is_service_reachable = True
+                    response_indicators.append("Service Response")
+                    
+            except Exception as e:
                 response_text = ""
             
-            # Determine status based on HTTP code and content analysis
+            # More aggressive status determination
             if response.status_code == 200:
                 print(f"{C.G}✅ ACCESSIBLE{C.E}")
                 connectivity_status = '🟢 ACCESSIBLE'
@@ -1056,40 +1081,45 @@ def check_basic_connectivity(basic_endpoints, namespace):
                 print(f"{C.G}✅ ACCESSIBLE (Redirect){C.E}")
                 connectivity_status = '🟢 ACCESSIBLE'
                 
-            elif response.status_code == 404 and is_service_reachable:
-                # Service is responding with 404 but it's actually reachable
-                indicator_text = f" ({response_indicators[0]})" if response_indicators else ""
-                print(f"{C.G}✅ ACCESSIBLE{indicator_text}{C.E}")
-                connectivity_status = f'🟢 ACCESSIBLE{indicator_text}'
+            elif response.status_code == 404:
+                # For 404, check if it's a service responding with structured content
+                if is_service_reachable:
+                    indicator_text = f" ({response_indicators[0]})" if response_indicators else ""
+                    print(f"{C.G}✅ ACCESSIBLE{indicator_text}{C.E}")
+                    connectivity_status = f'🟢 ACCESSIBLE{indicator_text}'
+                else:
+                    # True 404 with no service indicators
+                    print(f"{C.R}❌ HTTP 404 (Not Found){C.E}")
+                    connectivity_status = '🔴 HTTP 404'
                 
             elif response.status_code == 403:
-                print(f"{C.Y}⚠️  HTTP 403 (Forbidden){C.E}")
-                connectivity_status = '🟡 HTTP 403'
+                # Forbidden but service is responding
+                print(f"{C.G}✅ ACCESSIBLE (Forbidden){C.E}")
+                connectivity_status = '🟢 ACCESSIBLE (Forbidden)'
                 
-            elif response.status_code == 404:
-                # True 404 - service might be down or path doesn't exist
-                print(f"{C.R}❌ HTTP 404 (Not Found){C.E}")
-                connectivity_status = '🔴 HTTP 404'
+            elif response.status_code in [401]:
+                # Unauthorized but service is responding
+                print(f"{C.G}✅ ACCESSIBLE (Auth Required){C.E}")
+                connectivity_status = '🟢 ACCESSIBLE (Auth Required)'
                 
             elif response.status_code == 503:
                 print(f"{C.R}❌ HTTP 503 (Service Unavailable){C.E}")
                 connectivity_status = '🔴 HTTP 503'
                 
-            elif response.status_code in [401]:
-                # Unauthorized but service is responding
-                print(f"{C.Y}⚠️  HTTP 401 (Service Responding){C.E}")
-                connectivity_status = '🟡 HTTP 401'
-                
             elif response.status_code in [500, 502, 504]:
-                # Server errors but service is partially responding
-                print(f"{C.R}❌ HTTP {response.status_code}{C.E}")
-                connectivity_status = f'🔴 HTTP {response.status_code}'
+                # Server errors - service is there but having issues
+                if is_service_reachable:
+                    print(f"{C.Y}⚠️  HTTP {response.status_code} (Service Issues){C.E}")
+                    connectivity_status = f'🟡 HTTP {response.status_code}'
+                else:
+                    print(f"{C.R}❌ HTTP {response.status_code}{C.E}")
+                    connectivity_status = f'🔴 HTTP {response.status_code}'
                 
             else:
-                # Other HTTP codes - check if service seems to be responding
-                if is_service_reachable or response.status_code < 500:
-                    print(f"{C.Y}⚠️  HTTP {response.status_code}{C.E}")
-                    connectivity_status = f'🟡 HTTP {response.status_code}'
+                # Other HTTP codes - if we got a response, service is probably accessible
+                if response.status_code < 500 or is_service_reachable:
+                    print(f"{C.G}✅ ACCESSIBLE (HTTP {response.status_code}){C.E}")
+                    connectivity_status = f'🟢 ACCESSIBLE (HTTP {response.status_code})'
                 else:
                     print(f"{C.R}❌ HTTP {response.status_code}{C.E}")
                     connectivity_status = f'🔴 HTTP {response.status_code}'
@@ -1098,8 +1128,8 @@ def check_basic_connectivity(basic_endpoints, namespace):
             root_cause_display = format_root_cause_for_pdf(faulty_pod_details)
             results.append([service_name, connectivity_status, str(total_pods), root_cause_display])
             
-            # Show intelligent fault analysis for critical issues
-            if faulty_pod_details and not is_service_reachable:
+            # Show intelligent fault analysis for critical issues only if not accessible
+            if faulty_pod_details and not connectivity_status.startswith('🟢'):
                 for pod_detail in faulty_pod_details[:1]:  # Show first faulty pod in detail
                     root_cause = pod_detail.get('root_cause')
                     if root_cause:

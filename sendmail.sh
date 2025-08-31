@@ -2,31 +2,37 @@
 
 DeploymentDate=$(date +"%Y-%m-%d")
 
-# Email settings - FILL THESE IN!
-recipient="your-email@example.com"  # Replace with actual email
-sender="sender@example.com"         # Replace with actual email
+# Your actual working email settings
+recipient="your-working-email@company.com"
+sender="your-working-sender@company.com"  
 subject="K8s Health Report - $DeploymentDate"
 
-# Read and wrap HTML content
+# Read HTML content
 content=$(cat /home/user/k8_health_report/k8s_health_report_b01-prd-tfb-prd-w2.html)
 
-# Send using sendmail (most reliable method)
-cat << EOF | sendmail "$recipient"
-To: $recipient
-From: $sender
-Subject: $subject
-MIME-Version: 1.0
-Content-Type: text/html; charset=UTF-8
+# Try different approaches based on what's available on your system
 
-<html>
-<body>
-<p>Please find health check reports from above builds for AHUB.</p>
+# Method 1: Try with mailx if available
+if command -v mailx >/dev/null 2>&1; then
+    echo "$content" | mailx -a "Content-Type: text/html" -s "$subject" -r "$sender" "$recipient"
+elif command -v sendmail >/dev/null 2>&1; then
+    # Method 2: Use sendmail directly
+    {
+        echo "To: $recipient"
+        echo "From: $sender" 
+        echo "Subject: $subject"
+        echo "Content-Type: text/html; charset=utf-8"
+        echo "MIME-Version: 1.0"
+        echo ""
+        echo "$content"
+    } | sendmail "$recipient"
+else
+    # Method 3: Fall back to basic mail with headers in body
+    {
+        echo "Content-Type: text/html; charset=utf-8"
+        echo ""
+        echo "$content"
+    } | mail -s "$subject" -r "$sender" "$recipient"
+fi
 
-$content
-
-<p><br>Best Regards,<br>Jay Patel</p>
-</body>
-</html>
-EOF
-
-echo "HTML email sent successfully to $recipient"
+echo "HTML email sent to $recipient"

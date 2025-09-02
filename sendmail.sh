@@ -1,23 +1,37 @@
-# Create MIME formatted body that mail command can handle
-email_body=$(cat << EOF
-MIME-Version: 1.0
-Content-Type: multipart/alternative; boundary="boundary123"
+#!/bin/bash
+DeploymentDate=$(date +"%Y-%m-%d")
 
-This is a multi-part message in MIME format.
+# Email settings
+html_content=$(cat /home/user/k8_health_report/k8s_health_report_b01-prd-tfb-prd-w2.html)
+recipient="your-email@example.com"
+sender="sender@example.com"
+subject="K8s Health Report - $DeploymentDate"
+attachment_path="/home/user/k8_health_report/k8s_health_report_b01-prd-tfb-prd-w2.html"
 
---boundary123
-Content-Type: text/plain; charset=UTF-8
+# Convert HTML to readable plain text
+plain_text_content=$(echo "$html_content" | \
+    sed 's/<[^>]*>//g' | \                    # Remove HTML tags
+    sed 's/&nbsp;/ /g' | \                   # Replace &nbsp; with space
+    sed 's/&amp;/\&/g' | \                   # Replace &amp; with &
+    sed 's/&lt;/</g' | \                     # Replace &lt; with 
+    sed 's/&gt;/>/g' | \                     # Replace &gt; with >
+    sed '/^[[:space:]]*$/d' | \              # Remove empty lines
+    fold -s -w 80)                           # Wrap lines at 80 characters
 
-Please view this email in an HTML-capable email client to see the formatted report.
+# Create readable email body
+email_body="K8s Health Report - $DeploymentDate
 
---boundary123
-Content-Type: text/html; charset=UTF-8
+Please find the Kubernetes health check report below.
+The detailed HTML report is also attached for reference.
 
-$content
+===== HEALTH REPORT SUMMARY =====
 
---boundary123--
-EOF
-)
+$plain_text_content
 
-# Use your working mail command with MIME formatted body
+===== END OF REPORT =====
+
+Best Regards,
+Jay Patel"
+
+# Send using your working mail command
 echo -e "$email_body" | mail -s "$subject" -r "$sender" -a "$attachment_path" "$recipient"

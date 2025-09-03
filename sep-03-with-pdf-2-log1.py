@@ -1638,87 +1638,115 @@ def print_results(health_results, healthy_count, basic_results, services_no_sele
     # Calculate overall health excluding suspended services
     active_endpoints = len(health_results) + len(basic_results)
     
-    # Count accessible services from basic connectivity (including Spring Boot services with 404)
+    # Count accessible services from basic connectivity
     accessible_count = sum(1 for r in basic_results if 'ACCESSIBLE' in r[1]) if basic_results else 0
     total_healthy = healthy_count + accessible_count
     
-    # Health check results
+    # Health check results with clean table
     if health_results:
         total_endpoints = len(health_results)
         success_rate = (healthy_count/total_endpoints)*100
         
-        print(f"\n{C.B}📊 Health Check Results{C.E}")
-        print(tabulate(health_results, headers=['Service Endpoint', 'Status', 'Total Pods', 'Root Cause Analysis'], tablefmt='simple'))
+        print(f"\n{C.B}📊 HEALTH CHECK SUMMARY{C.E}")
+        print(f"{C.C}{'=' * 90}{C.E}")
+        print(tabulate(health_results, 
+                      headers=['Service', 'Status', 'DNS Info', 'Pods', 'Root Cause Analysis'], 
+                      tablefmt='simple',
+                      colalign=['left', 'center', 'left', 'center', 'left']))
         
-        print(f"\n{C.B}Health Stats:{C.E} {C.G}{healthy_count}/{total_endpoints} healthy{C.E} ({success_rate:.0f}%)")
+        print(f"\n{C.B}Health Stats:{C.E} {C.G}{healthy_count}/{total_endpoints} services healthy{C.E} ({success_rate:.0f}%)")
     
-    # Basic connectivity results
+    # Basic connectivity results with clean table
     if basic_results:
-        print(f"\n{C.B}🌐 Basic Connectivity Results{C.E}")
-        print(tabulate(basic_results, headers=['Service Endpoint', 'Status', 'Total Pods', 'Root Cause Analysis'], tablefmt='simple'))
+        print(f"\n{C.B}🌐 CONNECTIVITY SUMMARY{C.E}")
+        print(f"{C.C}{'=' * 90}{C.E}")
+        print(tabulate(basic_results, 
+                      headers=['Service', 'Status', 'DNS Info', 'Pods', 'Root Cause Analysis'], 
+                      tablefmt='simple',
+                      colalign=['left', 'center', 'left', 'center', 'left']))
         
         basic_success_rate = (accessible_count/len(basic_results))*100
-        print(f"\n{C.B}Connectivity Stats:{C.E} {C.G}{accessible_count}/{len(basic_results)} accessible{C.E} ({basic_success_rate:.0f}%)")
+        print(f"\n{C.B}Connectivity Stats:{C.E} {C.G}{accessible_count}/{len(basic_results)} services accessible{C.E} ({basic_success_rate:.0f}%)")
     
     # Overall system health (excluding suspended services)
     if active_endpoints > 0:
         overall_health_rate = (total_healthy / active_endpoints) * 100
-        print(f"\n{C.B}Overall System Health:{C.E} {C.G}{total_healthy}/{active_endpoints} operational{C.E} ({overall_health_rate:.1f}%)")
-        print(f"{C.B}(Suspended services excluded from health calculation){C.E}")
+        
+        print(f"\n{C.B}🎯 SYSTEM OVERVIEW{C.E}")
+        print(f"{C.C}{'=' * 90}{C.E}")
+        print(f"{C.B}Overall Health:{C.E} {C.G}{total_healthy}/{active_endpoints} services operational{C.E} ({overall_health_rate:.1f}%)")
         
         # Show breakdown for clarity
         if health_results and basic_results:
-            print(f"{C.C}  • Health monitored: {healthy_count}/{len(health_results)}")
-            print(f"  • Basic connectivity: {accessible_count}/{len(basic_results)}{C.E}")
+            print(f"  • Health monitored: {healthy_count}/{len(health_results)} services")
+            print(f"  • Basic connectivity: {accessible_count}/{len(basic_results)} services")
         
-        # Count unique services
+        # Count unique services for context
         unique_services = set()
         for result in health_results:
-            service_name = result[0].split(' (')[0]  # Extract base service name
+            service_name = result[0].split(' (')[0]
             unique_services.add(service_name)
         for result in basic_results:
-            service_name = result[0].split(' (')[0]  # Extract base service name
+            service_name = result[0].split(' (')[0]
             unique_services.add(service_name)
         
-        if len(unique_services) != active_endpoints:
-            print(f"{C.C}  • Total unique services: {len(unique_services)} (across {active_endpoints} endpoints){C.E}")
+        print(f"  • Total active services: {len(unique_services)}")
+        if len(suspended_services) > 0:
+            print(f"  • Suspended services: {len(suspended_services)} (excluded from health calculation)")
     
-    # Services categorization - SHOW ALL SERVICES (NO TRUNCATION)
+    # Service categories with better organization
     if any([suspended_services, services_no_selector, services_no_health_probe, services_no_ingress]):
-        print(f"\n{C.B}📋 Service Categories{C.E}")
+        print(f"\n{C.B}📋 SERVICE CATEGORIES{C.E}")
+        print(f"{C.C}{'=' * 90}{C.E}")
         
-        if suspended_services:
-            print(f"\n{C.R}🛑 Suspended Services (0 pods): {len(suspended_services)}{C.E}")
-            for svc in suspended_services:  # Show ALL services
-                print(f"  • {svc}")
+        categories = [
+            ("🛑 SUSPENDED SERVICES", suspended_services, "Services with zero pods", C.R),
+            ("🔸 MISSING SELECTORS", services_no_selector, "Invalid service configuration", C.Y),
+            ("🔸 MISSING HEALTH PROBES", services_no_health_probe, "No health monitoring configured", C.Y),
+            ("🔸 MISSING INGRESS", services_no_ingress, "No external access configured", C.Y)
+        ]
         
-        if services_no_selector:
-            print(f"\n{C.Y}🔸 No Selector: {len(services_no_selector)}{C.E}")
-            for svc in services_no_selector:  # Show ALL services
-                print(f"  • {svc}")
-        
-        if services_no_health_probe:
-            print(f"\n{C.Y}🔸 No Health Probe: {len(services_no_health_probe)}{C.E}")
-            for svc in services_no_health_probe:  # Show ALL services
-                print(f"  • {svc}")
-        
-        if services_no_ingress:
-            print(f"\n{C.Y}🔸 No Ingress Route: {len(services_no_ingress)}{C.E}")
-            for svc in services_no_ingress:  # Show ALL services
-                print(f"  • {svc}")
+        for title, services, description, color in categories:
+            if services:
+                print(f"\n{color}{title} ({len(services)}){C.E} - {description}")
+                # Display in columns for better readability
+                if len(services) <= 5:
+                    for svc in services:
+                        print(f"  • {svc}")
+                else:
+                    # Show first few and indicate more
+                    for svc in services[:5]:
+                        print(f"  • {svc}")
+                    if len(services) > 5:
+                        print(f"  • ... and {len(services) - 5} more services")
     
-    # Overall health status (based on active endpoints only)
+    # Overall system status with clear indicators
     if active_endpoints > 0:
+        print(f"\n{C.B}🏁 SYSTEM STATUS{C.E}")
+        print(f"{C.C}{'=' * 90}{C.E}")
+        
         if overall_health_rate >= 95:
-            print(f"\n{C.G}🎉 System operating excellently{C.E}")
+            print(f"{C.G}🎉 EXCELLENT - System operating at peak performance{C.E}")
         elif overall_health_rate >= 85:
-            print(f"\n{C.G}✅ System healthy{C.E}")
+            print(f"{C.G}✅ HEALTHY - System operating normally{C.E}")
         elif overall_health_rate >= 70:
-            print(f"\n{C.Y}⚠️  Some issues detected{C.E}")
+            print(f"{C.Y}⚠️  DEGRADED - Some services experiencing issues{C.E}")
         else:
-            print(f"\n{C.R}🚨 Multiple services down{C.E}")
+            print(f"{C.R}🚨 CRITICAL - Multiple service failures detected{C.E}")
+            
+        # Add actionable recommendations
+        if overall_health_rate < 85:
+            print(f"\n{C.B}💡 RECOMMENDATIONS:{C.E}")
+            if len(suspended_services) > 0:
+                print(f"  • Investigate {len(suspended_services)} suspended services")
+            if total_healthy < active_endpoints:
+                failing_services = active_endpoints - total_healthy
+                print(f"  • Address {failing_services} failing service endpoints")
+            if len(services_no_health_probe) > 0:
+                print(f"  • Add health probes to {len(services_no_health_probe)} services for better monitoring")
     else:
-        print(f"\n{C.Y}⚠️  No active services to monitor{C.E}")
+        print(f"\n{C.Y}⚠️  NO ACTIVE SERVICES - No services available for monitoring{C.E}")
+
 
 def print_restart_loop_summary(namespace):
     """Print a comprehensive summary of all restart loops in the namespace"""

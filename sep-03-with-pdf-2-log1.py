@@ -1608,12 +1608,17 @@ def check_basic_connectivity(basic_endpoints, namespace):
         # Format root cause display for PDF
         root_cause_display = format_root_cause_for_pdf(faulty_pod_details, service_is_healthy)
         
-        # Create detailed DNS info for PDF - show actual hostnames
+        # Create detailed DNS info for PDF with individual status
         if len(all_endpoints) > 1:
-            # Format DNS hostnames for PDF display
-            dns_hostnames = [url.replace('https://', '') for url in all_endpoints]
-            # Create multi-line service display with DNS details
-            service_display_name = f"{service_name}\n• " + "\n• ".join(dns_hostnames)
+            # Format DNS with individual status for PDF display
+            dns_details = []
+            for endpoint_url, status in zip(all_endpoints, endpoint_results):
+                dns_host = endpoint_url.replace('https://', '')
+                status_icon = "✅" if 'ACCESSIBLE' in status else "❌"
+                dns_details.append(f"{status_icon} {dns_host}: {status}")
+            
+            # Create multi-line service display with detailed DNS status
+            service_display_name = f"{service_name}\n" + "\n".join(dns_details)
             dns_info = ""  # Don't duplicate in root cause column
         else:
             dns_info = ""

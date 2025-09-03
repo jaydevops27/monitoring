@@ -68,7 +68,7 @@ class HealthCheckReport:
     def generate_pdf(self, health_results, healthy_count, basic_results, 
                     services_no_selector, services_no_health_probe, 
                     services_no_ingress, suspended_services, filename=None):
-        """Generate professional organizational PDF report"""
+        """Generate professional organizational PDF report with clean separated columns"""
         if not filename:
             filename = f"k8s_health_report_{self.namespace}_{self.timestamp.strftime('%Y%m%d_%H%M%S')}.pdf"
         
@@ -140,16 +140,41 @@ class HealthCheckReport:
         story.append(stats_table)
         story.append(Spacer(1, 0.15*inch))
         
-        # Service Status Tables - Organized by category
-        if health_results:
+        # CLEAN UP DATA BEFORE PASSING TO TABLES
+        clean_health_results = []
+        for row in health_results:
+            # Ensure clean format: [Service, Status, DNS Info, Pods, Root Cause]
+            clean_row = [
+                str(row[0]).split('\n')[0].strip(),  # Clean service name only
+                str(row[1]).strip(),                 # Status
+                str(row[2]).strip(),                 # DNS info
+                str(row[3]).strip(),                 # Pods
+                str(row[4]).strip()                  # Root cause
+            ]
+            clean_health_results.append(clean_row)
+        
+        clean_basic_results = []
+        for row in basic_results:
+            # Ensure clean format: [Service, Status, DNS Info, Pods, Root Cause]  
+            clean_row = [
+                str(row[0]).split('\n')[0].strip(),  # Clean service name only
+                str(row[1]).strip(),                 # Status
+                str(row[2]).strip(),                 # DNS info
+                str(row[3]).strip(),                 # Pods
+                str(row[4]).strip()                  # Root cause
+            ]
+            clean_basic_results.append(clean_row)
+        
+        # Service Status Tables - Organized by category with CLEAN DATA
+        if clean_health_results:
             story.append(Paragraph("Health Monitored Services", heading_style))
-            health_table = self._create_tmobile_results_table(health_results)
+            health_table = self._create_tmobile_results_table(clean_health_results)
             story.append(health_table)
             story.append(Spacer(1, 0.1*inch))
         
-        if basic_results:
+        if clean_basic_results:
             story.append(Paragraph("Basic Connectivity Services", heading_style))
-            basic_table = self._create_tmobile_results_table(basic_results)
+            basic_table = self._create_tmobile_results_table(clean_basic_results)
             story.append(basic_table)
             story.append(Spacer(1, 0.1*inch))
         

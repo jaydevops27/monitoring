@@ -183,10 +183,23 @@ class HealthCheckReport:
         return str(filepath)
     
     def _create_status_overview_box(self, health_results, healthy_count, basic_results, suspended_services):
-        """Create a clean status overview box with consistent formatting"""
+        """Create a clean status overview box with updated data structure"""
         active_services = len(health_results) + len(basic_results)
-        accessible_count = sum(1 for r in basic_results if 'ACCESSIBLE' in r[1]) if basic_results else 0
-        total_healthy = healthy_count + accessible_count
+        
+        # Count healthy services from new data structure [Service, Status, DNS Info, Pods, Root Cause]
+        healthy_services = 0
+        for result in health_results:
+            status = result[1]  # Status is now in second column
+            if 'HEALTHY' in status or 'UP' in status:
+                healthy_services += 1
+                
+        accessible_services = 0
+        for result in basic_results:
+            status = result[1]  # Status is now in second column
+            if 'ACCESSIBLE' in status:
+                accessible_services += 1
+        
+        total_healthy = healthy_services + accessible_services
         
         if active_services > 0:
             overall_health_rate = (total_healthy / active_services) * 100

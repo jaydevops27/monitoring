@@ -1662,6 +1662,12 @@ def print_results(health_results, healthy_count, basic_results, services_no_sele
         
         print(f"\n{C.B}📊 HEALTH CHECK SUMMARY{C.E}")
         print(f"{C.C}{'=' * 90}{C.E}")
+        
+        # Debug: Print what data is going to the table
+        print("DEBUG - Health Results Data Format:")
+        for i, result in enumerate(health_results[:2]):  # Show first 2 for debugging
+            print(f"Row {i}: {result}")
+        
         print(tabulate(health_results, 
                       headers=['Service', 'Status', 'DNS Info', 'Pods', 'Root Cause Analysis'], 
                       tablefmt='simple',
@@ -1673,6 +1679,12 @@ def print_results(health_results, healthy_count, basic_results, services_no_sele
     if basic_results:
         print(f"\n{C.B}🌐 CONNECTIVITY SUMMARY{C.E}")
         print(f"{C.C}{'=' * 90}{C.E}")
+        
+        # Debug: Print what data is going to the table
+        print("DEBUG - Basic Results Data Format:")
+        for i, result in enumerate(basic_results[:2]):  # Show first 2 for debugging
+            print(f"Row {i}: {result}")
+        
         print(tabulate(basic_results, 
                       headers=['Service', 'Status', 'DNS Info', 'Pods', 'Root Cause Analysis'], 
                       tablefmt='simple',

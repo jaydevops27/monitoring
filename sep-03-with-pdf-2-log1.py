@@ -1605,12 +1605,13 @@ def check_basic_connectivity(basic_endpoints, namespace):
                 status_color = C.G if 'ACCESSIBLE' in status else C.R
                 print(f"    [{j+1}] {dns_host:<30} {status_color}{status}{C.E}")
         
-        # Format results
-        root_cause_display = format_root_cause_for_pdf(faulty_pod_details, service_is_healthy)
-        
+        # Create detailed DNS info for PDF - show actual hostnames
         if len(all_endpoints) > 1:
-            dns_info = f" | DNS: {', '.join([url.replace('https://', '') for url in all_endpoints])}"
-            service_display_name = f"{service_name} ({len(all_endpoints)} endpoints)"
+            # Format DNS hostnames for PDF display
+            dns_hostnames = [url.replace('https://', '') for url in all_endpoints]
+            # Create multi-line service display with DNS details
+            service_display_name = f"{service_name}\n• " + "\n• ".join(dns_hostnames)
+            dns_info = ""  # Don't duplicate in root cause column
         else:
             dns_info = ""
             service_display_name = service_name

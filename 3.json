@@ -978,7 +978,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "avg by (deployment) (rate(label_replace(container_cpu_usage_seconds_total{namespace=`$namespace`, container!=``, container!=`POD`}[5m], `deployment`, `$1`, `pod`, `(.+)-[^-]+-[^-]+$`))) * 100",
+          "expr": "avg by (deployment) (rate(label_replace(container_cpu_usage_seconds_total{namespace=`$namespace`, pod=~`$service-.*`, container!=``, container!=`POD`}[5m], `deployment`, `$1`, `pod`, `(.+)-[^-]+-[^-]+$`))) * 100",
           "format": "table",
           "instant": true,
           "refId": "D"
@@ -989,7 +989,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "sum by (deployment) (label_replace(container_memory_working_set_bytes{namespace=`$namespace`, container!=``, container!=`POD`}, `deployment`, `$1`, `pod`, `(.+)-[^-]+-[^-]+$`))",
+          "expr": "sum by (deployment) (label_replace(container_memory_working_set_bytes{namespace=`$namespace`, pod=~`$service-.*`, container!=``, container!=`POD`}, `deployment`, `$1`, `pod`, `(.+)-[^-]+-[^-]+$`))",
           "format": "table",
           "instant": true,
           "refId": "E"
@@ -1000,7 +1000,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "sum by (deployment) (increase(label_replace(kube_pod_container_status_restarts_total{namespace=`$namespace`}[24h], `deployment`, `$1`, `pod`, `(.+)-[^-]+-[^-]+$`)))",
+          "expr": "sum by (deployment) (increase(label_replace(kube_pod_container_status_restarts_total{namespace=`$namespace`, pod=~`$service-.*`}[24h], `deployment`, `$1`, `pod`, `(.+)-[^-]+-[^-]+$`)))",
           "format": "table",
           "instant": true,
           "refId": "F"
@@ -1022,7 +1022,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "sum by (service) (rate(nginx_ingress_controller_requests{namespace=`$namespace`}[5m]))",
+          "expr": "sum by (service) (rate(nginx_ingress_controller_requests{namespace=`$namespace`, service=~`$service`}[5m]))",
           "format": "table",
           "instant": true,
           "refId": "H"
@@ -1033,7 +1033,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "histogram_quantile(0.95, sum by (service, le) (rate(nginx_ingress_controller_request_duration_seconds_bucket{namespace=`$namespace`}[5m]))) * 1000",
+          "expr": "histogram_quantile(0.95, sum by (service, le) (rate(nginx_ingress_controller_request_duration_seconds_bucket{namespace=`$namespace`, service=~`$service`}[5m]))) * 1000",
           "format": "table",
           "instant": true,
           "refId": "I"
@@ -1044,7 +1044,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "sum by (service) (rate(nginx_ingress_controller_requests{namespace=`$namespace`, status=~`5..`}[5m])) / sum by (service) (rate(nginx_ingress_controller_requests{namespace=`$namespace`}[5m])) * 100",
+          "expr": "sum by (service) (rate(nginx_ingress_controller_requests{namespace=`$namespace`, service=~`$service`, status=~`5..`}[5m])) / sum by (service) (rate(nginx_ingress_controller_requests{namespace=`$namespace`, service=~`$service`}[5m])) * 100",
           "format": "table",
           "instant": true,
           "refId": "J"
@@ -1294,7 +1294,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "sum by (deployment) (rate(label_replace(container_cpu_usage_seconds_total{namespace=`$namespace`, container!=``, container!=`POD`}[5m], `deployment`, `$1`, `pod`, `(.+)-[^-]+-[^-]+$`)))",
+          "expr": "sum by (deployment) (rate(label_replace(container_cpu_usage_seconds_total{namespace=`$namespace`, pod=~`$service-.*`, container!=``, container!=`POD`}[5m], `deployment`, `$1`, `pod`, `(.+)-[^-]+-[^-]+$`)))",
           "legendFormat": "{{deployment}}",
           "range": true,
           "refId": "A"
@@ -1385,7 +1385,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "sum by (deployment) (label_replace(container_memory_working_set_bytes{namespace=`$namespace`, container!=``, container!=`POD`}, `deployment`, `$1`, `pod`, `(.+)-[^-]+-[^-]+$`))",
+          "expr": "sum by (deployment) (label_replace(container_memory_working_set_bytes{namespace=`$namespace`, pod=~`$service-.*`, container!=``, container!=`POD`}, `deployment`, `$1`, `pod`, `(.+)-[^-]+-[^-]+$`))",
           "legendFormat": "{{deployment}}",
           "range": true,
           "refId": "A"
@@ -1477,7 +1477,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "kube_deployment_status_replicas{namespace=`$namespace`}",
+          "expr": "kube_deployment_status_replicas{namespace=`$namespace`, deployment=~`$service`}",
           "legendFormat": "{{deployment}} - Desired",
           "range": true,
           "refId": "A"
@@ -1488,7 +1488,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "kube_deployment_status_replicas_available{namespace=`$namespace`}",
+          "expr": "kube_deployment_status_replicas_available{namespace=`$namespace`, deployment=~`$service`}",
           "legendFormat": "{{deployment}} - Available",
           "range": true,
           "refId": "B"
@@ -1577,7 +1577,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "sum by (deployment, pod) (increase(label_replace(kube_pod_container_status_restarts_total{namespace=`$namespace`}[1h], `deployment`, `$1`, `pod`, `(.+)-[^-]+-[^-]+$`)))",
+          "expr": "sum by (deployment, pod) (increase(label_replace(kube_pod_container_status_restarts_total{namespace=`$namespace`, pod=~`$service-.*`}[1h], `deployment`, `$1`, `pod`, `(.+)-[^-]+-[^-]+$`)))",
           "legendFormat": "{{deployment}} - {{pod}}",
           "range": true,
           "refId": "A"
@@ -1801,7 +1801,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "label_join(kube_pod_info{namespace=`$namespace`}, `service`, `-`, `created_by_name`) * on(pod) group_left(phase) (kube_pod_status_phase{namespace=`$namespace`, phase=`Running`} == 1)",
+          "expr": "label_join(kube_pod_info{namespace=`$namespace`, pod=~`$service-.*`}, `service`, `-`, `created_by_name`) * on(pod) group_left(phase) (kube_pod_status_phase{namespace=`$namespace`, pod=~`$service-.*`, phase=`Running`} == 1)",
           "format": "table",
           "instant": true,
           "refId": "A"
@@ -1812,7 +1812,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "kube_pod_status_ready{namespace=`$namespace`, condition=`true`} == 1",
+          "expr": "kube_pod_status_ready{namespace=`$namespace`, pod=~`$service-.*`, condition=`true`} == 1",
           "format": "table",
           "instant": true,
           "refId": "B"
@@ -1823,7 +1823,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "sum by (pod) (kube_pod_container_status_restarts_total{namespace=`$namespace`})",
+          "expr": "sum by (pod) (kube_pod_container_status_restarts_total{namespace=`$namespace`, pod=~`$service-.*`})",
           "format": "table",
           "instant": true,
           "refId": "C"
@@ -1834,7 +1834,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=`$namespace`, container!=``, container!=`POD`}[5m]))",
+          "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=`$namespace`, pod=~`$service-.*`, container!=``, container!=`POD`}[5m]))",
           "format": "table",
           "instant": true,
           "refId": "D"
@@ -1845,7 +1845,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=`$namespace`, container!=``, container!=`POD`})",
+          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=`$namespace`, pod=~`$service-.*`, container!=``, container!=`POD`})",
           "format": "table",
           "instant": true,
           "refId": "E"
@@ -1856,7 +1856,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "time() - kube_pod_start_time{namespace=`$namespace`}",
+          "expr": "time() - kube_pod_start_time{namespace=`$namespace`, pod=~`$service-.*`}",
           "format": "table",
           "instant": true,
           "refId": "F"
@@ -2017,7 +2017,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "sum by (deployment) (rate(label_replace(container_network_receive_bytes_total{namespace=`$namespace`}[5m], `deployment`, `$1`, `pod`, `(.+)-[^-]+-[^-]+$`)))",
+          "expr": "sum by (deployment) (rate(label_replace(container_network_receive_bytes_total{namespace=`$namespace`, pod=~`$service-.*`}[5m], `deployment`, `$1`, `pod`, `(.+)-[^-]+-[^-]+$`)))",
           "legendFormat": "RX - {{deployment}}",
           "range": true,
           "refId": "A"
@@ -2028,7 +2028,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "sum by (deployment) (rate(label_replace(container_network_transmit_bytes_total{namespace=`$namespace`}[5m], `deployment`, `$1`, `pod`, `(.+)-[^-]+-[^-]+$`)))",
+          "expr": "sum by (deployment) (rate(label_replace(container_network_transmit_bytes_total{namespace=`$namespace`, pod=~`$service-.*`}[5m], `deployment`, `$1`, `pod`, `(.+)-[^-]+-[^-]+$`)))",
           "legendFormat": "TX - {{deployment}}",
           "range": true,
           "refId": "B"
@@ -2118,7 +2118,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "sum by (service, status) (rate(nginx_ingress_controller_requests{namespace=`$namespace`}[5m]))",
+          "expr": "sum by (service, status) (rate(nginx_ingress_controller_requests{namespace=`$namespace`, service=~`$service`}[5m]))",
           "legendFormat": "{{service}} - {{status}}xx",
           "range": true,
           "refId": "A"

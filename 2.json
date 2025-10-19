@@ -978,7 +978,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "avg by (deployment) (rate(label_replace(container_cpu_usage_seconds_total{namespace=`$namespace`, container!=``, container!=`POD`}[5m]), `deployment`, `$1`, `pod`, `(.+)-[\\w]+-[\\w]+`))) * 100",
+          "expr": "avg by (deployment) (rate(container_cpu_usage_seconds_total{namespace=`$namespace`, container!=``, container!=`POD`}[5m]) * on (pod) group_left(owner_name) kube_pod_owner{namespace=`$namespace`, owner_kind=`ReplicaSet`} * on (owner_name) group_left(deployment) label_replace(kube_replicaset_owner{namespace=`$namespace`}, `deployment`, `$1`, `owner_name`, `.*`)) * 100",
           "format": "table",
           "instant": true,
           "refId": "D"
@@ -989,7 +989,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "sum by (deployment) (label_replace(container_memory_working_set_bytes{namespace=`$namespace`, container!=``, container!=`POD`}, `deployment`, `$1`, `pod`, `(.+)-[\\w]+-[\\w]+`))",
+          "expr": "sum by (deployment) (container_memory_working_set_bytes{namespace=`$namespace`, container!=``, container!=`POD`} * on (pod) group_left(owner_name) kube_pod_owner{namespace=`$namespace`, owner_kind=`ReplicaSet`} * on (owner_name) group_left(deployment) label_replace(kube_replicaset_owner{namespace=`$namespace`}, `deployment`, `$1`, `owner_name`, `.*`))",
           "format": "table",
           "instant": true,
           "refId": "E"
@@ -1000,7 +1000,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "sum by (deployment) (increase(label_replace(kube_pod_container_status_restarts_total{namespace=`$namespace`}, `deployment`, `$1`, `pod`, `(.+)-[\\w]+-[\\w]+`)[24h]))",
+          "expr": "sum by (deployment) (increase(kube_pod_container_status_restarts_total{namespace=`$namespace`}[24h]) * on (pod) group_left(owner_name) kube_pod_owner{namespace=`$namespace`, owner_kind=`ReplicaSet`} * on (owner_name) group_left(deployment) label_replace(kube_replicaset_owner{namespace=`$namespace`}, `deployment`, `$1`, `owner_name`, `.*`))",
           "format": "table",
           "instant": true,
           "refId": "F"
@@ -1294,7 +1294,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "avg by (deployment) (rate(label_replace(container_cpu_usage_seconds_total{namespace=`$namespace`, container!=``, container!=`POD`}[5m]), `deployment`, `$1`, `pod`, `(.+)-[\\w]+-[\\w]+`)))",
+          "expr": "avg by (deployment) (rate(container_cpu_usage_seconds_total{namespace=`$namespace`, container!=``, container!=`POD`}[5m]) * on (pod) group_left(owner_name) kube_pod_owner{namespace=`$namespace`, owner_kind=`ReplicaSet`} * on (owner_name) group_left(deployment) label_replace(kube_replicaset_owner{namespace=`$namespace`}, `deployment`, `$1`, `owner_name`, `.*`))",
           "legendFormat": "{{deployment}}",
           "range": true,
           "refId": "A"
@@ -1385,7 +1385,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "avg by (deployment) (label_replace(container_memory_working_set_bytes{namespace=`$namespace`, container!=``, container!=`POD`}, `deployment`, `$1`, `pod`, `(.+)-[\\w]+-[\\w]+`))",
+          "expr": "avg by (deployment) (container_memory_working_set_bytes{namespace=`$namespace`, container!=``, container!=`POD`} * on (pod) group_left(owner_name) kube_pod_owner{namespace=`$namespace`, owner_kind=`ReplicaSet`} * on (owner_name) group_left(deployment) label_replace(kube_replicaset_owner{namespace=`$namespace`}, `deployment`, `$1`, `owner_name`, `.*`))",
           "legendFormat": "{{deployment}}",
           "range": true,
           "refId": "A"
@@ -1577,7 +1577,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "sum by (deployment, pod) (increase(label_replace(kube_pod_container_status_restarts_total{namespace=`$namespace`}, `deployment`, `$1`, `pod`, `(.+)-[\\w]+-[\\w]+`)[1h]))",
+          "expr": "sum by (deployment, pod) (increase(kube_pod_container_status_restarts_total{namespace=`$namespace`}[1h]) * on (pod) group_left(owner_name) kube_pod_owner{namespace=`$namespace`, owner_kind=`ReplicaSet`} * on (owner_name) group_left(deployment) label_replace(kube_replicaset_owner{namespace=`$namespace`}, `deployment`, `$1`, `owner_name`, `.*`))",
           "legendFormat": "{{deployment}} - {{pod}}",
           "range": true,
           "refId": "A"
@@ -2017,7 +2017,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "sum by (deployment) (rate(label_replace(container_network_receive_bytes_total{namespace=`$namespace`}, `deployment`, `$1`, `pod`, `(.+)-[\\w]+-[\\w]+`)[5m]))",
+          "expr": "sum by (deployment) (rate(container_network_receive_bytes_total{namespace=`$namespace`}[5m]) * on (pod) group_left(owner_name) kube_pod_owner{namespace=`$namespace`, owner_kind=`ReplicaSet`} * on (owner_name) group_left(deployment) label_replace(kube_replicaset_owner{namespace=`$namespace`}, `deployment`, `$1`, `owner_name`, `.*`))",
           "legendFormat": "RX - {{deployment}}",
           "range": true,
           "refId": "A"
@@ -2028,7 +2028,7 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "sum by (deployment) (rate(label_replace(container_network_transmit_bytes_total{namespace=`$namespace`}, `deployment`, `$1`, `pod`, `(.+)-[\\w]+-[\\w]+`)[5m]))",
+          "expr": "sum by (deployment) (rate(container_network_transmit_bytes_total{namespace=`$namespace`}[5m]) * on (pod) group_left(owner_name) kube_pod_owner{namespace=`$namespace`, owner_kind=`ReplicaSet`} * on (owner_name) group_left(deployment) label_replace(kube_replicaset_owner{namespace=`$namespace`}, `deployment`, `$1`, `owner_name`, `.*`))",
           "legendFormat": "TX - {{deployment}}",
           "range": true,
           "refId": "B"

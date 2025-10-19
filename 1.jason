@@ -11,12 +11,6 @@
         "hide": true,
         "iconColor": "rgba(0, 211, 255, 1)",
         "name": "Annotations & Alerts",
-        "target": {
-          "limit": 100,
-          "matchAny": false,
-          "tags": [],
-          "type": "dashboard"
-        },
         "type": "dashboard"
       }
     ]
@@ -38,7 +32,7 @@
       },
       "id": 100,
       "panels": [],
-      "title": "Service Health Overview",
+      "title": "Service Health Summary",
       "type": "row"
     },
     {
@@ -56,7 +50,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
+                "color": "blue",
                 "value": null
               }
             ]
@@ -65,8 +59,8 @@
         }
       },
       "gridPos": {
-        "h": 4,
-        "w": 4,
+        "h": 3,
+        "w": 3,
         "x": 0,
         "y": 1
       },
@@ -82,7 +76,7 @@
           "values": false
         },
         "text": {},
-        "textMode": "value_and_name"
+        "textMode": "auto"
       },
       "pluginVersion": "9.0.0",
       "targets": [
@@ -92,13 +86,13 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count(count by (service) (up{namespace=\"$namespace\", service=~\".+\"}))",
-          "legendFormat": "Services",
+          "expr": "count(count by (deployment) (kube_deployment_labels{namespace=\"$namespace\"}))",
+          "legendFormat": "Total Services",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "Active Services",
+      "title": "Total Services",
       "type": "stat"
     },
     {
@@ -118,10 +112,6 @@
               {
                 "color": "green",
                 "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
               }
             ]
           },
@@ -129,9 +119,9 @@
         }
       },
       "gridPos": {
-        "h": 4,
-        "w": 4,
-        "x": 4,
+        "h": 3,
+        "w": 3,
+        "x": 3,
         "y": 1
       },
       "id": 2,
@@ -146,7 +136,7 @@
           "values": false
         },
         "text": {},
-        "textMode": "value_and_name"
+        "textMode": "auto"
       },
       "pluginVersion": "9.0.0",
       "targets": [
@@ -156,13 +146,13 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "sum(kube_pod_status_phase{namespace=\"$namespace\", phase=\"Running\"})",
-          "legendFormat": "Running",
+          "expr": "count(kube_deployment_status_replicas_available{namespace=\"$namespace\"} == kube_deployment_status_replicas{namespace=\"$namespace\"})",
+          "legendFormat": "Healthy",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "Healthy Pods",
+      "title": "Healthy Services",
       "type": "stat"
     },
     {
@@ -189,7 +179,7 @@
               },
               {
                 "color": "red",
-                "value": 5
+                "value": 2
               }
             ]
           },
@@ -197,9 +187,9 @@
         }
       },
       "gridPos": {
-        "h": 4,
-        "w": 4,
-        "x": 8,
+        "h": 3,
+        "w": 3,
+        "x": 6,
         "y": 1
       },
       "id": 3,
@@ -214,7 +204,7 @@
           "values": false
         },
         "text": {},
-        "textMode": "value_and_name"
+        "textMode": "auto"
       },
       "pluginVersion": "9.0.0",
       "targets": [
@@ -224,13 +214,13 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "sum(kube_pod_status_phase{namespace=\"$namespace\", phase!=\"Running\"})",
-          "legendFormat": "Unhealthy",
+          "expr": "count(kube_deployment_status_replicas_available{namespace=\"$namespace\"} < kube_deployment_status_replicas{namespace=\"$namespace\"})",
+          "legendFormat": "Degraded",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "Unhealthy Pods",
+      "title": "Degraded Services",
       "type": "stat"
     },
     {
@@ -248,16 +238,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
+                "color": "blue",
                 "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 10
-              },
-              {
-                "color": "red",
-                "value": 50
               }
             ]
           },
@@ -265,9 +247,9 @@
         }
       },
       "gridPos": {
-        "h": 4,
-        "w": 4,
-        "x": 12,
+        "h": 3,
+        "w": 3,
+        "x": 9,
         "y": 1
       },
       "id": 4,
@@ -282,7 +264,7 @@
           "values": false
         },
         "text": {},
-        "textMode": "value_and_name"
+        "textMode": "auto"
       },
       "pluginVersion": "9.0.0",
       "targets": [
@@ -292,13 +274,13 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "sum(increase(kube_pod_container_status_restarts_total{namespace=\"$namespace\"}[1h]))",
-          "legendFormat": "Restarts (1h)",
+          "expr": "sum(kube_deployment_status_replicas{namespace=\"$namespace\"})",
+          "legendFormat": "Total Pods",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "Pod Restarts (1h)",
+      "title": "Total Pods",
       "type": "stat"
     },
     {
@@ -335,9 +317,9 @@
         }
       },
       "gridPos": {
-        "h": 4,
-        "w": 4,
-        "x": 16,
+        "h": 3,
+        "w": 3,
+        "x": 12,
         "y": 1
       },
       "id": 5,
@@ -352,7 +334,7 @@
           "values": false
         },
         "text": {},
-        "textMode": "value_and_name"
+        "textMode": "auto"
       },
       "pluginVersion": "9.0.0",
       "targets": [
@@ -362,13 +344,13 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "(sum(kube_pod_status_phase{namespace=\"$namespace\", phase=\"Running\"}) / sum(kube_pod_status_phase{namespace=\"$namespace\"})) * 100",
-          "legendFormat": "Availability",
+          "expr": "(sum(kube_deployment_status_replicas_available{namespace=\"$namespace\"}) / sum(kube_deployment_status_replicas{namespace=\"$namespace\"})) * 100",
+          "legendFormat": "Overall",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "Service Availability",
+      "title": "Overall Availability",
       "type": "stat"
     },
     {
@@ -383,7 +365,7 @@
           },
           "mappings": [],
           "thresholds": {
-            "mode": "percentage",
+            "mode": "absolute",
             "steps": [
               {
                 "color": "green",
@@ -399,15 +381,15 @@
               }
             ]
           },
-          "unit": "percentunit",
-          "max": 1,
+          "unit": "percent",
+          "max": 100,
           "min": 0
         }
       },
       "gridPos": {
-        "h": 4,
-        "w": 4,
-        "x": 20,
+        "h": 3,
+        "w": 3,
+        "x": 15,
         "y": 1
       },
       "id": 6,
@@ -422,7 +404,7 @@
           "values": false
         },
         "text": {},
-        "textMode": "value_and_name"
+        "textMode": "auto"
       },
       "pluginVersion": "9.0.0",
       "targets": [
@@ -432,8 +414,8 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "avg(rate(container_cpu_usage_seconds_total{namespace=\"$namespace\", container!=\"\", container!=\"POD\"}[5m]))",
-          "legendFormat": "CPU Usage",
+          "expr": "avg(rate(container_cpu_usage_seconds_total{namespace=\"$namespace\", container!=\"\", container!=\"POD\"}[5m])) * 100",
+          "legendFormat": "CPU",
           "range": true,
           "refId": "A"
         }
@@ -442,16 +424,154 @@
       "type": "stat"
     },
     {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 70
+              },
+              {
+                "color": "red",
+                "value": 85
+              }
+            ]
+          },
+          "unit": "percent",
+          "max": 100,
+          "min": 0
+        }
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 3,
+        "x": 18,
+        "y": 1
+      },
+      "id": 7,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "text": {},
+        "textMode": "auto"
+      },
+      "pluginVersion": "9.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "(sum(container_memory_working_set_bytes{namespace=\"$namespace\", container!=\"\", container!=\"POD\"}) / sum(kube_node_status_allocatable{resource=\"memory\", unit=\"byte\"})) * 100",
+          "legendFormat": "Memory",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Avg Memory Usage",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 10
+              },
+              {
+                "color": "red",
+                "value": 50
+              }
+            ]
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 3,
+        "x": 21,
+        "y": 1
+      },
+      "id": 8,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "text": {},
+        "textMode": "auto"
+      },
+      "pluginVersion": "9.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "sum(increase(kube_pod_container_status_restarts_total{namespace=\"$namespace\"}[1h]))",
+          "legendFormat": "1h",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Pod Restarts",
+      "type": "stat"
+    },
+    {
       "collapsed": false,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 5
+        "y": 4
       },
       "id": 101,
       "panels": [],
-      "title": "Service Details & Pod Distribution",
+      "title": "Service Status Overview",
       "type": "row"
     },
     {
@@ -481,7 +601,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Health"
+              "options": "Status"
             },
             "properties": [
               {
@@ -493,30 +613,54 @@
                 "value": [
                   {
                     "options": {
-                      "1": {
+                      "Healthy": {
                         "color": "green",
-                        "text": "Healthy"
+                        "index": 0
                       },
-                      "0": {
+                      "Degraded": {
+                        "color": "yellow",
+                        "index": 1
+                      },
+                      "Down": {
                         "color": "red",
-                        "text": "Unhealthy"
+                        "index": 2
                       }
                     },
                     "type": "value"
                   }
                 ]
+              },
+              {
+                "id": "custom.width",
+                "value": 80
               }
             ]
           },
           {
             "matcher": {
               "id": "byName",
-              "options": "CPU Usage"
+              "options": "Pods"
+            },
+            "properties": [
+              {
+                "id": "custom.displayMode",
+                "value": "basic"
+              },
+              {
+                "id": "custom.width",
+                "value": 120
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "CPU %"
             },
             "properties": [
               {
                 "id": "unit",
-                "value": "percentunit"
+                "value": "percent"
               },
               {
                 "id": "custom.displayMode",
@@ -524,7 +668,35 @@
               },
               {
                 "id": "max",
-                "value": 1
+                "value": 100
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 60
+                    },
+                    {
+                      "color": "orange",
+                      "value": 80
+                    },
+                    {
+                      "color": "red",
+                      "value": 90
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "custom.width",
+                "value": 100
               }
             ]
           },
@@ -541,26 +713,171 @@
               {
                 "id": "decimals",
                 "value": 2
+              },
+              {
+                "id": "custom.width",
+                "value": 100
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Restarts"
+            },
+            "properties": [
+              {
+                "id": "custom.displayMode",
+                "value": "color-text"
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": 0
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 1
+                    },
+                    {
+                      "color": "orange",
+                      "value": 5
+                    },
+                    {
+                      "color": "red",
+                      "value": 10
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "custom.width",
+                "value": 80
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Uptime"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              },
+              {
+                "id": "custom.width",
+                "value": 100
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "RPS"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "reqps"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "custom.width",
+                "value": 80
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "P95 Latency"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "ms"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "custom.width",
+                "value": 100
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Error Rate"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "custom.displayMode",
+                "value": "color-text"
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": 0
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 1
+                    },
+                    {
+                      "color": "red",
+                      "value": 5
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "custom.width",
+                "value": 80
               }
             ]
           }
         ]
       },
       "gridPos": {
-        "h": 10,
+        "h": 8,
         "w": 24,
         "x": 0,
-        "y": 6
+        "y": 5
       },
-      "id": 7,
+      "id": 9,
       "options": {
         "showHeader": true,
         "sortBy": [
           {
-            "desc": true,
-            "displayName": "Running Pods"
+            "desc": false,
+            "displayName": "Service"
           }
-        ]
+        ],
+        "footer": {
+          "show": false,
+          "reducer": ["sum"],
+          "fields": ""
+        }
       },
       "pluginVersion": "9.0.0",
       "targets": [
@@ -570,11 +887,9 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count by (service) (up{namespace=\"$namespace\", service=~\"$service\"})",
+          "expr": "kube_deployment_labels{namespace=\"$namespace\", deployment=~\"$service\"}",
           "format": "table",
           "instant": true,
-          "legendFormat": "__auto",
-          "range": false,
           "refId": "A"
         },
         {
@@ -583,12 +898,9 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count by (service) (kube_pod_labels{namespace=\"$namespace\", label_app=~\"$service\"})",
+          "expr": "kube_deployment_status_replicas_available{namespace=\"$namespace\", deployment=~\"$service\"}",
           "format": "table",
-          "hide": false,
           "instant": true,
-          "legendFormat": "__auto",
-          "range": false,
           "refId": "B"
         },
         {
@@ -597,12 +909,9 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count by (deployment) (kube_deployment_status_replicas_available{namespace=\"$namespace\", deployment=~\"$service\"})",
+          "expr": "kube_deployment_status_replicas{namespace=\"$namespace\", deployment=~\"$service\"}",
           "format": "table",
-          "hide": false,
           "instant": true,
-          "legendFormat": "__auto",
-          "range": false,
           "refId": "C"
         },
         {
@@ -611,12 +920,9 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "count by (deployment) (kube_deployment_status_replicas{namespace=\"$namespace\", deployment=~\"$service\"})",
+          "expr": "avg by (deployment) (rate(container_cpu_usage_seconds_total{namespace=\"$namespace\", pod=~\"(.*deployment.*|.*service.*)\", container!=\"\", container!=\"POD\"}[5m])) * 100",
           "format": "table",
-          "hide": false,
           "instant": true,
-          "legendFormat": "__auto",
-          "range": false,
           "refId": "D"
         },
         {
@@ -625,12 +931,9 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "avg by (deployment) (rate(container_cpu_usage_seconds_total{namespace=\"$namespace\", pod=~\"$service.*\", container!=\"\", container!=\"POD\"}[5m]))",
+          "expr": "sum by (deployment) (container_memory_working_set_bytes{namespace=\"$namespace\", pod=~\"(.*deployment.*|.*service.*)\", container!=\"\", container!=\"POD\"})",
           "format": "table",
-          "hide": false,
           "instant": true,
-          "legendFormat": "__auto",
-          "range": false,
           "refId": "E"
         },
         {
@@ -639,12 +942,9 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "sum by (deployment) (container_memory_working_set_bytes{namespace=\"$namespace\", pod=~\"$service.*\", container!=\"\", container!=\"POD\"})",
+          "expr": "sum by (deployment) (increase(kube_pod_container_status_restarts_total{namespace=\"$namespace\", pod=~\"(.*deployment.*|.*service.*)\"}[24h]))",
           "format": "table",
-          "hide": false,
           "instant": true,
-          "legendFormat": "__auto",
-          "range": false,
           "refId": "F"
         },
         {
@@ -653,12 +953,9 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "sum by (deployment) (increase(kube_pod_container_status_restarts_total{namespace=\"$namespace\", pod=~\"$service.*\"}[24h]))",
+          "expr": "min by (deployment) (time() - kube_deployment_created{namespace=\"$namespace\", deployment=~\"$service\"})",
           "format": "table",
-          "hide": false,
           "instant": true,
-          "legendFormat": "__auto",
-          "range": false,
           "refId": "G"
         },
         {
@@ -667,16 +964,35 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "(count by (deployment) (kube_deployment_status_replicas_available{namespace=\"$namespace\", deployment=~\"$service\"}) == count by (deployment) (kube_deployment_status_replicas{namespace=\"$namespace\", deployment=~\"$service\"})) or (0 * count by (deployment) (kube_deployment_status_replicas{namespace=\"$namespace\", deployment=~\"$service\"}))",
+          "expr": "sum by (service) (rate(nginx_ingress_controller_requests{namespace=\"$namespace\"}[5m]))",
           "format": "table",
-          "hide": false,
           "instant": true,
-          "legendFormat": "__auto",
-          "range": false,
           "refId": "H"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.95, sum by (service, le) (rate(nginx_ingress_controller_request_duration_seconds_bucket{namespace=\"$namespace\"}[5m]))) * 1000",
+          "format": "table",
+          "instant": true,
+          "refId": "I"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "sum by (service) (rate(nginx_ingress_controller_requests{namespace=\"$namespace\", status=~\"5..\"}[5m])) / sum by (service) (rate(nginx_ingress_controller_requests{namespace=\"$namespace\"}[5m])) * 100",
+          "format": "table",
+          "instant": true,
+          "refId": "J"
         }
       ],
-      "title": "Service Status Overview",
+      "title": "Service Health Matrix",
       "transformations": [
         {
           "id": "merge",
@@ -686,19 +1002,58 @@
           "id": "organize",
           "options": {
             "excludeByName": {
-              "Time": true
+              "Time": true,
+              "job": true,
+              "instance": true,
+              "__name__": true,
+              "label_app_kubernetes_io_instance": true,
+              "label_app_kubernetes_io_name": true,
+              "label_app_kubernetes_io_version": true
             },
             "renameByName": {
-              "Value #A": "Endpoints",
-              "Value #B": "Total Pods",
-              "Value #C": "Running Pods",
-              "Value #D": "Desired Pods",
-              "Value #E": "CPU Usage",
-              "Value #F": "Memory",
-              "Value #G": "Restarts (24h)",
-              "Value #H": "Health",
-              "service": "Service Name",
-              "deployment": "Service Name"
+              "deployment": "Service",
+              "Value #B": "Available",
+              "Value #C": "Desired",
+              "Value #D": "CPU %",
+              "Value #E": "Memory",
+              "Value #F": "Restarts",
+              "Value #G": "Uptime",
+              "service": "Ingress",
+              "Value #H": "RPS",
+              "Value #I": "P95 Latency",
+              "Value #J": "Error Rate"
+            }
+          }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "mode": "string",
+            "reduce": {
+              "reducer": "sum"
+            },
+            "replaceFields": false,
+            "alias": "Pods",
+            "binary": {
+              "left": "Available",
+              "operator": "/",
+              "right": "Desired"
+            }
+          }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "mode": "string",
+            "reduce": {
+              "reducer": "sum"
+            },
+            "replaceFields": false,
+            "alias": "Status",
+            "binary": {
+              "left": "Available",
+              "operator": "/",
+              "right": "Desired"
             }
           }
         },
@@ -707,14 +1062,61 @@
           "options": {
             "include": {
               "names": [
-                "Service Name",
-                "Health",
-                "Running Pods",
-                "Desired Pods",
-                "CPU Usage",
+                "Service",
+                "Status",
+                "Available",
+                "Desired",
+                "CPU %",
                 "Memory",
-                "Restarts (24h)"
+                "Restarts",
+                "Uptime",
+                "RPS",
+                "P95 Latency",
+                "Error Rate"
               ]
+            }
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {},
+            "renameByName": {
+              "Status": "Status",
+              "Available": "Available",
+              "Desired": "Desired"
+            }
+          }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "mode": "string",
+            "reduce": {
+              "reducer": "sum"
+            },
+            "replaceFields": true,
+            "alias": "Pods",
+            "binary": {
+              "left": "Available",
+              "operator": "*",
+              "right": "Desired"
+            }
+          }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "mode": "string",
+            "reduce": {
+              "reducer": "sum"
+            },
+            "replaceFields": true,
+            "alias": "Status",
+            "binary": {
+              "left": "Status",
+              "operator": "*",
+              "right": "1"
             }
           }
         }
@@ -727,7 +1129,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 16
+        "y": 13
       },
       "id": 102,
       "panels": [],
@@ -789,12 +1191,12 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 17
+        "y": 14
       },
-      "id": 8,
+      "id": 10,
       "options": {
         "legend": {
-          "calcs": ["mean", "lastNotNull"],
+          "calcs": ["mean", "lastNotNull", "max"],
           "displayMode": "table",
           "placement": "right",
           "showLegend": true
@@ -812,13 +1214,13 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"$namespace\", pod=~\"$service.*\", container!=\"\", container!=\"POD\"}[5m])) by (pod)",
-          "legendFormat": "{{pod}}",
+          "expr": "avg by (deployment) (rate(container_cpu_usage_seconds_total{namespace=\"$namespace\", pod=~\"$service.*\", container!=\"\", container!=\"POD\"}[5m]))",
+          "legendFormat": "{{deployment}}",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "CPU Usage by Service Pods",
+      "title": "CPU Usage by Service",
       "type": "timeseries"
     },
     {
@@ -876,12 +1278,12 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 17
+        "y": 14
       },
-      "id": 9,
+      "id": 11,
       "options": {
         "legend": {
-          "calcs": ["mean", "lastNotNull"],
+          "calcs": ["mean", "lastNotNull", "max"],
           "displayMode": "table",
           "placement": "right",
           "showLegend": true
@@ -899,13 +1301,13 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "sum(container_memory_working_set_bytes{namespace=\"$namespace\", pod=~\"$service.*\", container!=\"\", container!=\"POD\"}) by (pod)",
-          "legendFormat": "{{pod}}",
+          "expr": "avg by (deployment) (container_memory_working_set_bytes{namespace=\"$namespace\", pod=~\"$service.*\", container!=\"\", container!=\"POD\"})",
+          "legendFormat": "{{deployment}}",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "Memory Usage by Service Pods",
+      "title": "Memory Usage by Service",
       "type": "timeseries"
     },
     {
@@ -923,105 +1325,7 @@
             "axisPlacement": "auto",
             "barAlignment": 0,
             "drawStyle": "line",
-            "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": {
-              "tooltip": false,
-              "viz": false,
-              "legend": false
-            },
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "unit": "reqps"
-        }
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 25
-      },
-      "id": 10,
-      "options": {
-        "legend": {
-          "calcs": ["mean", "max"],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "pluginVersion": "9.0.0",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "$datasource"
-          },
-          "editorMode": "code",
-          "expr": "sum(rate(container_network_receive_packets_total{namespace=\"$namespace\", pod=~\"$service.*\"}[5m])) by (pod)",
-          "legendFormat": "RX {{pod}}",
-          "range": true,
-          "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "$datasource"
-          },
-          "editorMode": "code",
-          "expr": "sum(rate(container_network_transmit_packets_total{namespace=\"$namespace\", pod=~\"$service.*\"}[5m])) by (pod)",
-          "legendFormat": "TX {{pod}}",
-          "range": true,
-          "refId": "B"
-        }
-      ],
-      "title": "Network Packets Rate",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 10,
+            "fillOpacity": 0,
             "gradientMode": "none",
             "hideFrom": {
               "tooltip": false,
@@ -1063,15 +1367,15 @@
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 12,
-        "y": 25
+        "x": 0,
+        "y": 22
       },
-      "id": 11,
+      "id": 12,
       "options": {
         "legend": {
           "calcs": ["lastNotNull"],
           "displayMode": "table",
-          "placement": "bottom",
+          "placement": "right",
           "showLegend": true
         },
         "tooltip": {
@@ -1102,20 +1406,96 @@
           "legendFormat": "{{deployment}} - Available",
           "range": true,
           "refId": "B"
+        }
+      ],
+      "title": "Service Replica Status",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "bars",
+            "fillOpacity": 100,
+            "gradientMode": "none",
+            "hideFrom": {
+              "tooltip": false,
+              "viz": false,
+              "legend": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "normal"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 22
+      },
+      "id": 13,
+      "options": {
+        "legend": {
+          "calcs": ["sum"],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
         },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "pluginVersion": "9.0.0",
+      "targets": [
         {
           "datasource": {
             "type": "prometheus",
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "kube_deployment_status_replicas_unavailable{namespace=\"$namespace\", deployment=~\"$service\"}",
-          "legendFormat": "{{deployment}} - Unavailable",
+          "expr": "sum by (deployment, pod) (increase(kube_pod_container_status_restarts_total{namespace=\"$namespace\", pod=~\"$service.*\"}[1h]))",
+          "legendFormat": "{{deployment}} - {{pod}}",
           "range": true,
-          "refId": "C"
+          "refId": "A"
         }
       ],
-      "title": "Service Replica Status",
+      "title": "Pod Restarts by Service (Hourly)",
       "type": "timeseries"
     },
     {
@@ -1124,11 +1504,11 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 33
+        "y": 30
       },
       "id": 103,
       "panels": [],
-      "title": "Pod Details by Service",
+      "title": "Pod Details for Selected Services",
       "type": "row"
     },
     {
@@ -1170,25 +1550,13 @@
                 "value": [
                   {
                     "options": {
-                      "Running": {
+                      "1": {
                         "color": "green",
                         "text": "Running"
                       },
-                      "Pending": {
-                        "color": "yellow",
-                        "text": "Pending"
-                      },
-                      "Failed": {
+                      "0": {
                         "color": "red",
-                        "text": "Failed"
-                      },
-                      "Succeeded": {
-                        "color": "blue",
-                        "text": "Succeeded"
-                      },
-                      "Unknown": {
-                        "color": "gray",
-                        "text": "Unknown"
+                        "text": "Not Running"
                       }
                     },
                     "type": "value"
@@ -1212,11 +1580,11 @@
                 "value": [
                   {
                     "options": {
-                      "true": {
+                      "1": {
                         "color": "green",
                         "text": "Yes"
                       },
-                      "false": {
+                      "0": {
                         "color": "red",
                         "text": "No"
                       }
@@ -1236,6 +1604,10 @@
               {
                 "id": "custom.displayMode",
                 "value": "gradient-gauge"
+              },
+              {
+                "id": "max",
+                "value": 20
               },
               {
                 "id": "thresholds",
@@ -1262,6 +1634,58 @@
                 }
               }
             ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "CPU"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percentunit"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              },
+              {
+                "id": "custom.displayMode",
+                "value": "lcd-gauge"
+              },
+              {
+                "id": "max",
+                "value": 1
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Memory"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "bytes"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Age"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              }
+            ]
           }
         ]
       },
@@ -1269,9 +1693,9 @@
         "h": 10,
         "w": 24,
         "x": 0,
-        "y": 34
+        "y": 31
       },
-      "id": 12,
+      "id": 14,
       "options": {
         "showHeader": true,
         "sortBy": [
@@ -1289,11 +1713,9 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "kube_pod_info{namespace=\"$namespace\"} * on(pod, namespace) group_left(phase) kube_pod_status_phase{namespace=\"$namespace\", phase=\"Running\"}",
+          "expr": "label_join(kube_pod_info{namespace=\"$namespace\"}, \"service\", \"-\", \"created_by_name\") * on(pod) group_left(phase) (kube_pod_status_phase{namespace=\"$namespace\", phase=\"Running\"} == 1)",
           "format": "table",
           "instant": true,
-          "legendFormat": "__auto",
-          "range": false,
           "refId": "A"
         },
         {
@@ -1302,12 +1724,9 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "kube_pod_status_ready{namespace=\"$namespace\", condition=\"true\"}",
+          "expr": "kube_pod_status_ready{namespace=\"$namespace\", condition=\"true\"} == 1",
           "format": "table",
-          "hide": false,
           "instant": true,
-          "legendFormat": "__auto",
-          "range": false,
           "refId": "B"
         },
         {
@@ -1316,12 +1735,9 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "sum by (pod, namespace) (kube_pod_container_status_restarts_total{namespace=\"$namespace\"})",
+          "expr": "sum by (pod) (kube_pod_container_status_restarts_total{namespace=\"$namespace\"})",
           "format": "table",
-          "hide": false,
           "instant": true,
-          "legendFormat": "__auto",
-          "range": false,
           "refId": "C"
         },
         {
@@ -1330,16 +1746,35 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "kube_pod_labels{namespace=\"$namespace\"}",
+          "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"$namespace\", container!=\"\", container!=\"POD\"}[5m]))",
           "format": "table",
-          "hide": false,
           "instant": true,
-          "legendFormat": "__auto",
-          "range": false,
           "refId": "D"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"$namespace\", container!=\"\", container!=\"POD\"})",
+          "format": "table",
+          "instant": true,
+          "refId": "E"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "time() - kube_pod_start_time{namespace=\"$namespace\"}",
+          "format": "table",
+          "instant": true,
+          "refId": "F"
         }
       ],
-      "title": "Pod Details for Selected Service",
+      "title": "Pod Details",
       "transformations": [
         {
           "id": "merge",
@@ -1350,27 +1785,29 @@
           "options": {
             "excludeByName": {
               "Time": true,
-              "Value #A": true,
-              "Value #B": true,
               "__name__": true,
               "job": true,
               "instance": true,
               "uid": true,
               "pod_ip": true,
-              "created_by_kind": true,
-              "created_by_name": true,
-              "priority_class": true,
               "host_ip": true,
-              "host_network": true
+              "host_network": true,
+              "priority_class": true,
+              "created_by_kind": true,
+              "condition": true,
+              "phase": true
             },
             "renameByName": {
               "pod": "Pod Name",
               "node": "Node",
-              "phase": "Status",
-              "condition": "Ready",
+              "Value #A": "Status",
+              "Value #B": "Ready",
               "Value #C": "Restarts",
-              "label_app": "Service",
-              "namespace": "Namespace"
+              "Value #D": "CPU",
+              "Value #E": "Memory",
+              "Value #F": "Age",
+              "created_by_name": "Service",
+              "service": "Service"
             }
           }
         },
@@ -1382,7 +1819,7 @@
                 "config": {
                   "id": "regex",
                   "options": {
-                    "value": "$service"
+                    "value": "^$service.*"
                   }
                 },
                 "fieldName": "Service"
@@ -1401,11 +1838,11 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 44
+        "y": 41
       },
       "id": 104,
       "panels": [],
-      "title": "HTTP Metrics (if available)",
+      "title": "Network & Ingress Metrics",
       "type": "row"
     },
     {
@@ -1456,19 +1893,19 @@
               }
             ]
           },
-          "unit": "reqps"
+          "unit": "binBps"
         }
       },
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 45
+        "y": 42
       },
-      "id": 13,
+      "id": 15,
       "options": {
         "legend": {
-          "calcs": ["mean", "lastNotNull"],
+          "calcs": ["mean", "max"],
           "displayMode": "list",
           "placement": "bottom",
           "showLegend": true
@@ -1486,13 +1923,24 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "sum(rate(nginx_ingress_controller_requests{namespace=\"$namespace\", service=~\"$service\"}[5m])) by (service, status)",
-          "legendFormat": "{{service}} - {{status}}",
+          "expr": "sum by (deployment) (rate(container_network_receive_bytes_total{namespace=\"$namespace\", pod=~\"$service.*\"}[5m]))",
+          "legendFormat": "RX - {{deployment}}",
           "range": true,
           "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "expr": "sum by (deployment) (rate(container_network_transmit_bytes_total{namespace=\"$namespace\", pod=~\"$service.*\"}[5m]))",
+          "legendFormat": "TX - {{deployment}}",
+          "range": true,
+          "refId": "B"
         }
       ],
-      "title": "HTTP Request Rate by Status",
+      "title": "Network I/O by Service",
       "type": "timeseries"
     },
     {
@@ -1527,7 +1975,7 @@
             "spanNulls": false,
             "stacking": {
               "group": "A",
-              "mode": "none"
+              "mode": "normal"
             },
             "thresholdsStyle": {
               "mode": "off"
@@ -1543,19 +1991,19 @@
               }
             ]
           },
-          "unit": "s"
+          "unit": "reqps"
         }
       },
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 45
+        "y": 42
       },
-      "id": 14,
+      "id": 16,
       "options": {
         "legend": {
-          "calcs": ["mean", "lastNotNull", "max"],
+          "calcs": ["mean", "max"],
           "displayMode": "list",
           "placement": "bottom",
           "showLegend": true
@@ -1573,24 +2021,13 @@
             "uid": "$datasource"
           },
           "editorMode": "code",
-          "expr": "histogram_quantile(0.95, sum(rate(nginx_ingress_controller_request_duration_seconds_bucket{namespace=\"$namespace\", service=~\"$service\"}[5m])) by (service, le))",
-          "legendFormat": "{{service}} - P95",
+          "expr": "sum by (service, status) (rate(nginx_ingress_controller_requests{namespace=\"$namespace\", service=~\"$service\"}[5m]))",
+          "legendFormat": "{{service}} - {{status}}xx",
           "range": true,
           "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "$datasource"
-          },
-          "editorMode": "code",
-          "expr": "histogram_quantile(0.99, sum(rate(nginx_ingress_controller_request_duration_seconds_bucket{namespace=\"$namespace\", service=~\"$service\"}[5m])) by (service, le))",
-          "legendFormat": "{{service}} - P99",
-          "range": true,
-          "refId": "B"
         }
       ],
-      "title": "HTTP Response Time (P95/P99)",
+      "title": "HTTP Request Rate by Status Code",
       "type": "timeseries"
     }
   ],
@@ -1606,7 +2043,7 @@
     "list": [
       {
         "current": {
-          "selected": true,
+          "selected": false,
           "text": "",
           "value": ""
         },
@@ -1624,6 +2061,7 @@
         "type": "datasource"
       },
       {
+        "allValue": "",
         "current": {},
         "datasource": {
           "type": "prometheus",
@@ -1647,6 +2085,7 @@
         "type": "query"
       },
       {
+        "allValue": ".*",
         "current": {},
         "datasource": {
           "type": "prometheus",
@@ -1672,7 +2111,7 @@
     ]
   },
   "time": {
-    "from": "now-3h",
+    "from": "now-1h",
     "to": "now"
   },
   "timepicker": {
@@ -1690,8 +2129,8 @@
     ]
   },
   "timezone": "",
-  "title": "Production Service Monitor - Kubernetes",
-  "uid": "prod-service-monitor",
+  "title": "Production Service Monitor",
+  "uid": "prod-service-monitor-v2",
   "version": 1,
   "weekStart": ""
 }

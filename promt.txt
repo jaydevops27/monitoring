@@ -1,0 +1,60 @@
+Prompt for Cluster-Level (Namespace Monitoring) Dashboard
+
+Create a Grafana dashboard for monitoring Kubernetes namespaces inside a single cluster. 
+This dashboard should NOT display cluster node-level metrics — it should focus only on namespaces and their workloads.
+
+Requirements:
+1. Title: "Cluster Namespace Overview - <ClusterName>"
+2. Data Source: Prometheus (metrics already available in dataset)
+3. Dashboard purpose: Provide resource utilization, health, and workload summaries across all namespaces within the cluster.
+4. Panels to include:
+   - Namespace list with current status (Running, Pending, Terminating counts)
+   - CPU usage per namespace (avg, max)
+   - Memory usage per namespace (avg, max)
+   - Pod count per namespace (running, pending, failed)
+   - Active services count per namespace
+   - Resource quota vs usage per namespace
+   - Network I/O per namespace (ingress/egress throughput)
+   - Top 5 namespaces by CPU usage
+   - Top 5 namespaces by memory usage
+5. Add templating variables:
+   - Variable: cluster (fixed for this dashboard)
+   - Variable: namespace (dynamic list from available namespaces)
+6. Each namespace row should link to its respective **Namespace-Service Detail Dashboard** using a dashboard link or clickable panel.
+
+Ensure layout is clean, grouped logically with collapsible panels.
+Use time range selectors and auto-refresh (every 30s).
+Goal: Provide real-time visibility of namespace health inside one cluster.
+
+
+Prompt for Namespace-Level (Service Monitoring) Dashboard
+
+Create a Grafana dashboard for monitoring all SERVICES within a specific Kubernetes namespace.
+
+Requirements:
+1. Title: "Namespace Service Details - ${namespace}"
+2. Data Source: Prometheus (datasets already contain service and pod metrics)
+3. Dashboard purpose: Provide deep visibility into service-level performance, reliability, and resource consumption.
+4. Panels to include:
+   - Summary section with total pods, services, deployments, and restarts
+   - CPU and memory usage of all pods in the namespace (stacked time series)
+   - Service availability status (number of endpoints up/down)
+   - Average response time per service (if available via HTTP metrics)
+   - Error rate per service (5xx, 4xx counts)
+   - Network traffic (ingress/egress per service)
+   - Pod restart count over time
+   - Resource limit vs usage comparison per deployment
+   - Logs panel integration (if Loki configured)
+   - Container metrics: CPU throttling, OOM kills, restarts
+5. Add templating variables:
+   - cluster (to switch between Cluster A or Cluster B)
+   - namespace (fixed for this dashboard)
+   - service (drop-down list for all services in namespace)
+6. Each service should drill down to pod or container metrics through clickable panels or dashboard links.
+7. Include alerts for:
+   - High CPU/memory (>80%)
+   - Pod restarts or CrashLoopBackOff
+   - Service unavailable or error rate >5%
+
+Ensure design uses rows by metric category (Resource, Network, Errors, Service health).
+Optimize for production performance with minimal Prometheus query load.

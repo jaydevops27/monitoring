@@ -8,14 +8,14 @@
     },
     {
       "type": "panel",
-      "id": "stat",
-      "name": "Stat",
+      "id": "row",
+      "name": "Row",
       "version": ""
     },
     {
       "type": "panel",
-      "id": "bargauge",
-      "name": "Bar gauge",
+      "id": "stat",
+      "name": "Stat",
       "version": ""
     },
     {
@@ -26,8 +26,14 @@
     },
     {
       "type": "panel",
-      "id": "text",
-      "name": "Text",
+      "id": "timeseries",
+      "name": "Time series",
+      "version": ""
+    },
+    {
+      "type": "panel",
+      "id": "bargauge",
+      "name": "Bar gauge",
       "version": ""
     },
     {
@@ -35,18 +41,18 @@
       "id": "prometheus",
       "name": "Prometheus",
       "version": "2.0.0"
+    },
+    {
+      "type": "panel",
+      "id": "text",
+      "name": "Text",
+      "version": ""
     }
   ],
   "dashboard": {
     "id": null,
-    "uid": "k8s-dualds-018d41",
-    "title": "K8s Ops \u2013 EAST/WEST (Datasource-per-Cluster)",
-    "tags": [
-      "kubernetes",
-      "operations",
-      "mvp",
-      "dual-datasource"
-    ],
+    "uid": null,
+    "title": "Cluster Namespace Overview - <ClusterName>",
     "schemaVersion": 39,
     "version": 1,
     "refresh": "30s",
@@ -57,389 +63,390 @@
     "templating": {
       "list": [
         {
-          "name": "DS_CLUSTER",
-          "label": "Cluster (Datasource)",
+          "name": "DS",
+          "label": "Prometheus",
           "type": "datasource",
           "query": "prometheus",
-          "hide": 0,
-          "current": {},
-          "description": "Pick EAST or WEST Prometheus datasource to switch clusters"
+          "hide": 0
         },
         {
-          "name": "ou",
-          "label": "OU",
-          "type": "query",
-          "datasource": "${DS_CLUSTER}",
-          "refresh": 2,
-          "includeAll": true,
-          "multi": true,
-          "allValue": ".*",
-          "sort": 1,
-          "query": "label_values(kube_namespace_labels, label_ou)",
-          "definition": "label_values(kube_namespace_labels, label_ou)",
-          "current": {},
-          "hide": 0
+          "name": "cluster",
+          "label": "Cluster",
+          "type": "constant",
+          "query": "<ClusterName>",
+          "current": {
+            "text": "<ClusterName>",
+            "value": "<ClusterName>"
+          },
+          "hide": 0,
+          "description": "Set this to the cluster name (pure label for titles/links)"
         },
         {
           "name": "namespace",
           "label": "Namespace",
           "type": "query",
-          "datasource": "${DS_CLUSTER}",
+          "datasource": "${DS}",
           "refresh": 2,
           "includeAll": true,
           "multi": true,
           "allValue": ".*",
           "sort": 1,
-          "query": "label_values(kube_namespace_labels{label_ou=~\"$ou\"}, namespace)",
-          "definition": "label_values(kube_namespace_labels{label_ou=~\"$ou\"}, namespace)",
-          "current": {},
-          "hide": 0
-        },
-        {
-          "name": "service",
-          "label": "Service",
-          "type": "query",
-          "datasource": "${DS_CLUSTER}",
-          "refresh": 2,
-          "includeAll": true,
-          "multi": true,
-          "allValue": ".*",
-          "sort": 1,
-          "query": "label_values(kube_service_labels{namespace=~\"$namespace\"}, service)",
-          "definition": "label_values(kube_service_labels{namespace=~\"$namespace\"}, service)",
-          "current": {},
-          "hide": 0
-        },
-        {
-          "name": "pod",
-          "label": "Pod",
-          "type": "query",
-          "datasource": "${DS_CLUSTER}",
-          "refresh": 2,
-          "includeAll": true,
-          "multi": true,
-          "allValue": ".*",
-          "sort": 1,
-          "query": "label_values(kube_pod_labels{namespace=~\"$namespace\", label_service=~\"$service\"}, pod)",
-          "definition": "label_values(kube_pod_labels{namespace=~\"$namespace\", label_service=~\"$service\"}, pod)",
-          "current": {},
+          "query": "label_values(kube_pod_info, namespace)",
+          "definition": "label_values(kube_pod_info, namespace)",
           "hide": 0
         }
       ]
     },
+    "links": [
+      {
+        "asDropdown": true,
+        "icon": "dashboard",
+        "includeVars": true,
+        "tags": [],
+        "targetBlank": false,
+        "title": "Go to Namespace Service Details",
+        "type": "link",
+        "url": "/d/ns-service-details/namespace-service-details?var-cluster=${DS}&var-namespace=$namespace"
+      }
+    ],
     "panels": [
       {
-        "type": "text",
-        "title": "How to use",
+        "type": "row",
+        "title": "Overview",
         "gridPos": {
-          "h": 5,
+          "h": 1,
           "w": 24,
           "x": 0,
           "y": 0
         },
-        "options": {
-          "mode": "markdown",
-          "content": "**Select cluster:** Choose the appropriate Prometheus datasource from **Cluster (Datasource)** (e.g., `EAST` or `WEST`).  \n**Hierarchy:** OU `$ou` \u2192 Namespace `$namespace` \u2192 Service `$service` \u2192 Pod `$pod`  \n**Labels required:** Namespaces labeled `ou`; Pods carry `service=<serviceName>` so `kube_pod_labels` exposes `label_service`.  \n**Note:** All queries are scoped by the selected datasource; no `cluster` label is required.\n"
-        }
-      },
-      {
-        "type": "stat",
-        "title": "CrashLoopBackOff Pods (now)",
-        "gridPos": {
-          "h": 4,
-          "w": 6,
-          "x": 0,
-          "y": 5
-        },
-        "datasource": "${DS_CLUSTER}",
-        "targets": [
-          {
-            "refId": "A",
-            "expr": "sum(kube_pod_container_status_waiting_reason{reason=\"CrashLoopBackOff\", namespace=~\"$namespace\"})",
-            "instant": true
-          }
-        ],
-        "options": {
-          "reduceOptions": {
-            "calcs": [
-              "lastNotNull"
-            ],
-            "fields": "",
-            "values": false
-          }
-        }
-      },
-      {
-        "type": "stat",
-        "title": "Pod Restarts (last 1h)",
-        "gridPos": {
-          "h": 4,
-          "w": 6,
-          "x": 6,
-          "y": 5
-        },
-        "datasource": "${DS_CLUSTER}",
-        "targets": [
-          {
-            "refId": "A",
-            "expr": "sum(increase(kube_pod_container_status_restarts_total{namespace=~\"$namespace\"}[1h]))",
-            "instant": true
-          }
-        ],
-        "options": {
-          "reduceOptions": {
-            "calcs": [
-              "lastNotNull"
-            ],
-            "fields": "",
-            "values": false
-          }
-        }
-      },
-      {
-        "type": "stat",
-        "title": "Namespaces (scoped)",
-        "gridPos": {
-          "h": 4,
-          "w": 4,
-          "x": 12,
-          "y": 5
-        },
-        "datasource": "${DS_CLUSTER}",
-        "targets": [
-          {
-            "refId": "A",
-            "expr": "count(count by (namespace) (kube_namespace_labels{label_ou=~\"$ou\"}))",
-            "instant": true
-          }
-        ],
-        "options": {
-          "reduceOptions": {
-            "calcs": [
-              "lastNotNull"
-            ]
-          }
-        }
-      },
-      {
-        "type": "stat",
-        "title": "Services (scoped)",
-        "gridPos": {
-          "h": 4,
-          "w": 4,
-          "x": 16,
-          "y": 5
-        },
-        "datasource": "${DS_CLUSTER}",
-        "targets": [
-          {
-            "refId": "A",
-            "expr": "count(count by (service) (kube_service_labels{namespace=~\"$namespace\"}))",
-            "instant": true
-          }
-        ],
-        "options": {
-          "reduceOptions": {
-            "calcs": [
-              "lastNotNull"
-            ]
-          }
-        }
-      },
-      {
-        "type": "stat",
-        "title": "Running Pods (now)",
-        "gridPos": {
-          "h": 4,
-          "w": 4,
-          "x": 20,
-          "y": 5
-        },
-        "datasource": "${DS_CLUSTER}",
-        "targets": [
-          {
-            "refId": "A",
-            "expr": "sum(kube_pod_status_phase{phase=\"Running\", namespace=~\"$namespace\"})",
-            "instant": true
-          }
-        ],
-        "options": {
-          "reduceOptions": {
-            "calcs": [
-              "lastNotNull"
-            ]
-          }
-        }
-      },
-      {
-        "type": "bargauge",
-        "title": "Top Services by Pod Restarts (1h)",
-        "gridPos": {
-          "h": 8,
-          "w": 12,
-          "x": 0,
-          "y": 9
-        },
-        "datasource": "${DS_CLUSTER}",
-        "options": {
-          "displayMode": "gradient"
-        },
-        "targets": [
-          {
-            "refId": "A",
-            "expr": "topk(10,\n  sum by (namespace, label_service) (\n    increase(kube_pod_container_status_restarts_total{namespace=~\"$namespace\"}[1h])\n    * on (namespace, pod) group_left(label_service)\n      kube_pod_labels{namespace=~\"$namespace\", label_service=~\"$service\"}\n  )\n)\n",
-            "instant": true,
-            "legendFormat": "{{label_service}} ({{namespace}})"
-          }
-        ]
-      },
-      {
-        "type": "bargauge",
-        "title": "Namespaces with CrashLoopBackOff Pods",
-        "gridPos": {
-          "h": 8,
-          "w": 12,
-          "x": 12,
-          "y": 9
-        },
-        "datasource": "${DS_CLUSTER}",
-        "targets": [
-          {
-            "refId": "A",
-            "expr": "topk(10, sum by (namespace) (kube_pod_container_status_waiting_reason{reason=\"CrashLoopBackOff\", namespace=~\"$namespace\"}))",
-            "instant": true,
-            "legendFormat": "{{namespace}}"
-          }
-        ]
-      },
-      {
-        "type": "stat",
-        "title": "Service Pods Ready / Not Ready",
-        "gridPos": {
-          "h": 4,
-          "w": 8,
-          "x": 0,
-          "y": 17
-        },
-        "datasource": "${DS_CLUSTER}",
-        "targets": [
-          {
-            "refId": "A",
-            "expr": "sum(kube_pod_status_ready{condition=\"true\", namespace=~\"$namespace\"}\n  * on (namespace, pod) group_left(label_service)\n    kube_pod_labels{namespace=~\"$namespace\", label_service=~\"$service\"})\n",
-            "instant": true,
-            "legendFormat": "ready"
-          },
-          {
-            "refId": "B",
-            "expr": "sum(kube_pod_status_ready{condition=\"false\", namespace=~\"$namespace\"}\n  * on (namespace, pod) group_left(label_service)\n    kube_pod_labels{namespace=~\"$namespace\", label_service=~\"$service\"})\n",
-            "instant": true,
-            "legendFormat": "not_ready"
-          }
-        ],
-        "options": {
-          "reduceOptions": {
-            "calcs": [
-              "lastNotNull"
-            ]
-          }
-        }
-      },
-      {
-        "type": "stat",
-        "title": "Service Pod Restarts (1h)",
-        "gridPos": {
-          "h": 4,
-          "w": 8,
-          "x": 8,
-          "y": 17
-        },
-        "datasource": "${DS_CLUSTER}",
-        "targets": [
-          {
-            "refId": "A",
-            "expr": "sum(increase(kube_pod_container_status_restarts_total{namespace=~\"$namespace\"}[1h])\n  * on (namespace, pod) group_left(label_service)\n    kube_pod_labels{namespace=~\"$namespace\", label_service=~\"$service\"})\n",
-            "instant": true
-          }
-        ],
-        "options": {
-          "reduceOptions": {
-            "calcs": [
-              "lastNotNull"
-            ]
-          }
-        }
-      },
-      {
-        "type": "stat",
-        "title": "Service CPU usage / requests",
-        "gridPos": {
-          "h": 4,
-          "w": 8,
-          "x": 16,
-          "y": 17
-        },
-        "datasource": "${DS_CLUSTER}",
-        "targets": [
-          {
-            "refId": "A",
-            "expr": "(sum(rate(container_cpu_usage_seconds_total{image!=\"\"}[$__rate_interval])\n   * on (namespace, pod) group_left(label_service)\n     kube_pod_labels{namespace=~\"$namespace\", label_service=~\"$service\"}))\n/ ignoring(unit)\n(sum(kube_pod_container_resource_requests{resource=\"cpu\", unit=\"core\", namespace=~\"$namespace\"}\n   * on (namespace, pod) group_left(label_service)\n     kube_pod_labels{namespace=~\"$namespace\", label_service=~\"$service\"}))\n",
-            "instant": true
-          }
-        ],
-        "options": {
-          "reduceOptions": {
-            "calcs": [
-              "lastNotNull"
-            ]
-          }
-        }
+        "collapsed": false,
+        "panels": []
       },
       {
         "type": "table",
-        "title": "Pods (scoped to Service/Namespace)",
+        "title": "Namespaces \u2013 Status (Running / Pending / Terminating)",
         "gridPos": {
           "h": 10,
           "w": 24,
           "x": 0,
-          "y": 21
+          "y": 1
         },
-        "datasource": "${DS_CLUSTER}",
+        "datasource": "${DS}",
         "options": {
           "showHeader": true
         },
         "targets": [
           {
-            "refId": "A",
-            "expr": "sum by (namespace, pod) (\n  kube_pod_status_phase{phase=\"Running\", namespace=~\"$namespace\"}\n  * on (namespace, pod) group_left(label_service)\n    kube_pod_labels{namespace=~\"$namespace\", label_service=~\"$service\"}\n)\n",
+            "refId": "RUN",
+            "expr": "sum by (namespace) (kube_pod_status_phase{phase=\"Running\", namespace=~\"$namespace\"})",
             "instant": true,
-            "legendFormat": "{{pod}}"
+            "legendFormat": "{{namespace}}"
           },
           {
-            "refId": "B",
-            "expr": "sum by (namespace, pod) (\n  increase(kube_pod_container_status_restarts_total{namespace=~\"$namespace\"}[1h])\n  * on (namespace, pod) group_left(label_service)\n    kube_pod_labels{namespace=~\"$namespace\", label_service=~\"$service\"}\n)\n",
-            "instant": true,
-            "legendFormat": "{{pod}}"
+            "refId": "PEND",
+            "expr": "sum by (namespace) (kube_pod_status_phase{phase=\"Pending\", namespace=~\"$namespace\"})",
+            "instant": true
           },
           {
-            "refId": "C",
-            "expr": "sum by (namespace, pod) (\n  kube_pod_container_status_waiting_reason{reason=\"CrashLoopBackOff\", namespace=~\"$namespace\"}\n  * on (namespace, pod) group_left(label_service)\n    kube_pod_labels{namespace=~\"$namespace\", label_service=~\"$service\"}\n)\n",
-            "instant": true,
-            "legendFormat": "{{pod}}"
+            "refId": "TERM",
+            "expr": "sum by (namespace) (max by (namespace,pod) (kube_pod_deletion_timestamp{namespace=~\"$namespace\"} > 0))",
+            "instant": true
           }
         ],
         "fieldConfig": {
           "defaults": {
             "links": [
               {
-                "title": "Drill to Pod",
-                "url": "?var-ou=$ou&var-namespace=${__field.labels.namespace}&var-service=$service&var-pod=${__field.labels.pod}"
+                "title": "Drill to Namespace Service Details",
+                "url": "/d/ns-service-details/namespace-service-details?var-cluster=${DS}&var-namespace=${__field.labels.namespace}"
               }
             ]
           },
           "overrides": []
         }
+      },
+      {
+        "type": "row",
+        "title": "Resources",
+        "gridPos": {
+          "h": 1,
+          "w": 24,
+          "x": 0,
+          "y": 11
+        },
+        "collapsed": true,
+        "panels": []
+      },
+      {
+        "type": "table",
+        "title": "CPU per Namespace (cores) \u2013 avg pod / max pod",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 12
+        },
+        "datasource": "${DS}",
+        "options": {
+          "showHeader": true
+        },
+        "targets": [
+          {
+            "refId": "AVG",
+            "expr": "avg by (namespace) (sum by (namespace,pod) (rate(container_cpu_usage_seconds_total{image!=\"\"}[$__rate_interval])))",
+            "instant": true
+          },
+          {
+            "refId": "MAX",
+            "expr": "max by (namespace) (sum by (namespace,pod) (rate(container_cpu_usage_seconds_total{image!=\"\"}[$__rate_interval])))",
+            "instant": true
+          }
+        ]
+      },
+      {
+        "type": "table",
+        "title": "Memory per Namespace (GiB) \u2013 avg pod / max pod",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 12
+        },
+        "datasource": "${DS}",
+        "options": {
+          "showHeader": true
+        },
+        "targets": [
+          {
+            "refId": "AVG",
+            "expr": "avg by (namespace) (sum by (namespace,pod) (container_memory_working_set_bytes{container!=\"\"})) / 1024^3",
+            "instant": true
+          },
+          {
+            "refId": "MAX",
+            "expr": "max by (namespace) (sum by (namespace,pod) (container_memory_working_set_bytes{container!=\"\"})) / 1024^3",
+            "instant": true
+          }
+        ]
+      },
+      {
+        "type": "stat",
+        "title": "Pods (Running)",
+        "gridPos": {
+          "h": 4,
+          "w": 6,
+          "x": 0,
+          "y": 20
+        },
+        "datasource": "${DS}",
+        "targets": [
+          {
+            "refId": "A",
+            "expr": "sum(kube_pod_status_phase{phase=\"Running\", namespace=~\"$namespace\"})",
+            "instant": true
+          }
+        ]
+      },
+      {
+        "type": "stat",
+        "title": "Pods (Pending)",
+        "gridPos": {
+          "h": 4,
+          "w": 6,
+          "x": 6,
+          "y": 20
+        },
+        "datasource": "${DS}",
+        "targets": [
+          {
+            "refId": "A",
+            "expr": "sum(kube_pod_status_phase{phase=\"Pending\", namespace=~\"$namespace\"})",
+            "instant": true
+          }
+        ]
+      },
+      {
+        "type": "stat",
+        "title": "Services (Active)",
+        "gridPos": {
+          "h": 4,
+          "w": 6,
+          "x": 12,
+          "y": 20
+        },
+        "datasource": "${DS}",
+        "targets": [
+          {
+            "refId": "A",
+            "expr": "count(count by (namespace,service) (kube_service_info{namespace=~\"$namespace\"}))",
+            "instant": true
+          }
+        ]
+      },
+      {
+        "type": "stat",
+        "title": "Deployments",
+        "gridPos": {
+          "h": 4,
+          "w": 6,
+          "x": 18,
+          "y": 20
+        },
+        "datasource": "${DS}",
+        "targets": [
+          {
+            "refId": "A",
+            "expr": "count(count by (namespace,deployment) (kube_deployment_labels{namespace=~\"$namespace\"}))",
+            "instant": true
+          }
+        ]
+      },
+      {
+        "type": "table",
+        "title": "Resource Quotas vs Used (per Namespace)",
+        "gridPos": {
+          "h": 8,
+          "w": 24,
+          "x": 0,
+          "y": 24
+        },
+        "datasource": "${DS}",
+        "options": {
+          "showHeader": true
+        },
+        "targets": [
+          {
+            "refId": "pods_used",
+            "expr": "sum by (namespace) (kube_resourcequota{resource=\"pods\", type=\"used\", namespace=~\"$namespace\"})",
+            "instant": true
+          },
+          {
+            "refId": "pods_hard",
+            "expr": "sum by (namespace) (kube_resourcequota{resource=\"pods\", type=\"hard\", namespace=~\"$namespace\"})",
+            "instant": true
+          },
+          {
+            "refId": "cpu_used",
+            "expr": "sum by (namespace) (kube_resourcequota{resource=\"requests.cpu\", type=\"used\", namespace=~\"$namespace\"})",
+            "instant": true
+          },
+          {
+            "refId": "cpu_hard",
+            "expr": "sum by (namespace) (kube_resourcequota{resource=\"requests.cpu\", type=\"hard\", namespace=~\"$namespace\"})",
+            "instant": true
+          },
+          {
+            "refId": "mem_used",
+            "expr": "sum by (namespace) (kube_resourcequota{resource=\"requests.memory\", type=\"used\", namespace=~\"$namespace\"}) / 1024^3",
+            "instant": true
+          },
+          {
+            "refId": "mem_hard",
+            "expr": "sum by (namespace) (kube_resourcequota{resource=\"requests.memory\", type=\"hard\", namespace=~\"$namespace\"}) / 1024^3",
+            "instant": true
+          }
+        ]
+      },
+      {
+        "type": "row",
+        "title": "Network",
+        "gridPos": {
+          "h": 1,
+          "w": 24,
+          "x": 0,
+          "y": 32
+        },
+        "collapsed": true,
+        "panels": []
+      },
+      {
+        "type": "bargauge",
+        "title": "Namespace Ingress (KiB/s)",
+        "gridPos": {
+          "h": 7,
+          "w": 12,
+          "x": 0,
+          "y": 33
+        },
+        "datasource": "${DS}",
+        "targets": [
+          {
+            "refId": "A",
+            "expr": "sum by (namespace) (rate(container_network_receive_bytes_total{namespace=~\"$namespace\"}[$__rate_interval])) / 1024",
+            "instant": true,
+            "legendFormat": "{{namespace}}"
+          }
+        ]
+      },
+      {
+        "type": "bargauge",
+        "title": "Namespace Egress (KiB/s)",
+        "gridPos": {
+          "h": 7,
+          "w": 12,
+          "x": 12,
+          "y": 33
+        },
+        "datasource": "${DS}",
+        "targets": [
+          {
+            "refId": "A",
+            "expr": "sum by (namespace) (rate(container_network_transmit_bytes_total{namespace=~\"$namespace\"}[$__rate_interval])) / 1024",
+            "instant": true,
+            "legendFormat": "{{namespace}}"
+          }
+        ]
+      },
+      {
+        "type": "row",
+        "title": "Top Namespaces",
+        "gridPos": {
+          "h": 1,
+          "w": 24,
+          "x": 0,
+          "y": 40
+        },
+        "collapsed": false,
+        "panels": []
+      },
+      {
+        "type": "bargauge",
+        "title": "Top 5 Namespaces by CPU (cores)",
+        "gridPos": {
+          "h": 7,
+          "w": 12,
+          "x": 0,
+          "y": 41
+        },
+        "datasource": "${DS}",
+        "targets": [
+          {
+            "refId": "A",
+            "expr": "topk(5, sum by (namespace) (sum by (namespace,pod) (rate(container_cpu_usage_seconds_total{image!=\"\"}[$__rate_interval]))))",
+            "instant": true,
+            "legendFormat": "{{namespace}}"
+          }
+        ]
+      },
+      {
+        "type": "bargauge",
+        "title": "Top 5 Namespaces by Memory (GiB)",
+        "gridPos": {
+          "h": 7,
+          "w": 12,
+          "x": 12,
+          "y": 41
+        },
+        "datasource": "${DS}",
+        "targets": [
+          {
+            "refId": "A",
+            "expr": "topk(5, sum by (namespace) (sum by (namespace,pod) (container_memory_working_set_bytes{container!=\"\"})) / 1024^3)",
+            "instant": true,
+            "legendFormat": "{{namespace}}"
+          }
+        ]
       }
     ]
-  },
-  "overwrite": false
+  }
 }

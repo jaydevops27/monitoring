@@ -1,0 +1,445 @@
+{
+  "__requires": [
+    {
+      "type": "grafana",
+      "id": "grafana",
+      "name": "Grafana",
+      "version": "10.0.0"
+    },
+    {
+      "type": "panel",
+      "id": "stat",
+      "name": "Stat",
+      "version": ""
+    },
+    {
+      "type": "panel",
+      "id": "bargauge",
+      "name": "Bar gauge",
+      "version": ""
+    },
+    {
+      "type": "panel",
+      "id": "table",
+      "name": "Table",
+      "version": ""
+    },
+    {
+      "type": "panel",
+      "id": "text",
+      "name": "Text",
+      "version": ""
+    },
+    {
+      "type": "datasource",
+      "id": "prometheus",
+      "name": "Prometheus",
+      "version": "2.0.0"
+    }
+  ],
+  "dashboard": {
+    "id": null,
+    "uid": "k8s-dualds-018d41",
+    "title": "K8s Ops \u2013 EAST/WEST (Datasource-per-Cluster)",
+    "tags": [
+      "kubernetes",
+      "operations",
+      "mvp",
+      "dual-datasource"
+    ],
+    "schemaVersion": 39,
+    "version": 1,
+    "refresh": "30s",
+    "time": {
+      "from": "now-6h",
+      "to": "now"
+    },
+    "templating": {
+      "list": [
+        {
+          "name": "DS_CLUSTER",
+          "label": "Cluster (Datasource)",
+          "type": "datasource",
+          "query": "prometheus",
+          "hide": 0,
+          "current": {},
+          "description": "Pick EAST or WEST Prometheus datasource to switch clusters"
+        },
+        {
+          "name": "ou",
+          "label": "OU",
+          "type": "query",
+          "datasource": "${DS_CLUSTER}",
+          "refresh": 2,
+          "includeAll": true,
+          "multi": true,
+          "allValue": ".*",
+          "sort": 1,
+          "query": "label_values(kube_namespace_labels, label_ou)",
+          "definition": "label_values(kube_namespace_labels, label_ou)",
+          "current": {},
+          "hide": 0
+        },
+        {
+          "name": "namespace",
+          "label": "Namespace",
+          "type": "query",
+          "datasource": "${DS_CLUSTER}",
+          "refresh": 2,
+          "includeAll": true,
+          "multi": true,
+          "allValue": ".*",
+          "sort": 1,
+          "query": "label_values(kube_namespace_labels{label_ou=~\"$ou\"}, namespace)",
+          "definition": "label_values(kube_namespace_labels{label_ou=~\"$ou\"}, namespace)",
+          "current": {},
+          "hide": 0
+        },
+        {
+          "name": "service",
+          "label": "Service",
+          "type": "query",
+          "datasource": "${DS_CLUSTER}",
+          "refresh": 2,
+          "includeAll": true,
+          "multi": true,
+          "allValue": ".*",
+          "sort": 1,
+          "query": "label_values(kube_service_labels{namespace=~\"$namespace\"}, service)",
+          "definition": "label_values(kube_service_labels{namespace=~\"$namespace\"}, service)",
+          "current": {},
+          "hide": 0
+        },
+        {
+          "name": "pod",
+          "label": "Pod",
+          "type": "query",
+          "datasource": "${DS_CLUSTER}",
+          "refresh": 2,
+          "includeAll": true,
+          "multi": true,
+          "allValue": ".*",
+          "sort": 1,
+          "query": "label_values(kube_pod_labels{namespace=~\"$namespace\", label_service=~\"$service\"}, pod)",
+          "definition": "label_values(kube_pod_labels{namespace=~\"$namespace\", label_service=~\"$service\"}, pod)",
+          "current": {},
+          "hide": 0
+        }
+      ]
+    },
+    "panels": [
+      {
+        "type": "text",
+        "title": "How to use",
+        "gridPos": {
+          "h": 5,
+          "w": 24,
+          "x": 0,
+          "y": 0
+        },
+        "options": {
+          "mode": "markdown",
+          "content": "**Select cluster:** Choose the appropriate Prometheus datasource from **Cluster (Datasource)** (e.g., `EAST` or `WEST`).  \n**Hierarchy:** OU `$ou` \u2192 Namespace `$namespace` \u2192 Service `$service` \u2192 Pod `$pod`  \n**Labels required:** Namespaces labeled `ou`; Pods carry `service=<serviceName>` so `kube_pod_labels` exposes `label_service`.  \n**Note:** All queries are scoped by the selected datasource; no `cluster` label is required.\n"
+        }
+      },
+      {
+        "type": "stat",
+        "title": "CrashLoopBackOff Pods (now)",
+        "gridPos": {
+          "h": 4,
+          "w": 6,
+          "x": 0,
+          "y": 5
+        },
+        "datasource": "${DS_CLUSTER}",
+        "targets": [
+          {
+            "refId": "A",
+            "expr": "sum(kube_pod_container_status_waiting_reason{reason=\"CrashLoopBackOff\", namespace=~\"$namespace\"})",
+            "instant": true
+          }
+        ],
+        "options": {
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "fields": "",
+            "values": false
+          }
+        }
+      },
+      {
+        "type": "stat",
+        "title": "Pod Restarts (last 1h)",
+        "gridPos": {
+          "h": 4,
+          "w": 6,
+          "x": 6,
+          "y": 5
+        },
+        "datasource": "${DS_CLUSTER}",
+        "targets": [
+          {
+            "refId": "A",
+            "expr": "sum(increase(kube_pod_container_status_restarts_total{namespace=~\"$namespace\"}[1h]))",
+            "instant": true
+          }
+        ],
+        "options": {
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "fields": "",
+            "values": false
+          }
+        }
+      },
+      {
+        "type": "stat",
+        "title": "Namespaces (scoped)",
+        "gridPos": {
+          "h": 4,
+          "w": 4,
+          "x": 12,
+          "y": 5
+        },
+        "datasource": "${DS_CLUSTER}",
+        "targets": [
+          {
+            "refId": "A",
+            "expr": "count(count by (namespace) (kube_namespace_labels{label_ou=~\"$ou\"}))",
+            "instant": true
+          }
+        ],
+        "options": {
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ]
+          }
+        }
+      },
+      {
+        "type": "stat",
+        "title": "Services (scoped)",
+        "gridPos": {
+          "h": 4,
+          "w": 4,
+          "x": 16,
+          "y": 5
+        },
+        "datasource": "${DS_CLUSTER}",
+        "targets": [
+          {
+            "refId": "A",
+            "expr": "count(count by (service) (kube_service_labels{namespace=~\"$namespace\"}))",
+            "instant": true
+          }
+        ],
+        "options": {
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ]
+          }
+        }
+      },
+      {
+        "type": "stat",
+        "title": "Running Pods (now)",
+        "gridPos": {
+          "h": 4,
+          "w": 4,
+          "x": 20,
+          "y": 5
+        },
+        "datasource": "${DS_CLUSTER}",
+        "targets": [
+          {
+            "refId": "A",
+            "expr": "sum(kube_pod_status_phase{phase=\"Running\", namespace=~\"$namespace\"})",
+            "instant": true
+          }
+        ],
+        "options": {
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ]
+          }
+        }
+      },
+      {
+        "type": "bargauge",
+        "title": "Top Services by Pod Restarts (1h)",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 9
+        },
+        "datasource": "${DS_CLUSTER}",
+        "options": {
+          "displayMode": "gradient"
+        },
+        "targets": [
+          {
+            "refId": "A",
+            "expr": "topk(10,\n  sum by (namespace, label_service) (\n    increase(kube_pod_container_status_restarts_total{namespace=~\"$namespace\"}[1h])\n    * on (namespace, pod) group_left(label_service)\n      kube_pod_labels{namespace=~\"$namespace\", label_service=~\"$service\"}\n  )\n)\n",
+            "instant": true,
+            "legendFormat": "{{label_service}} ({{namespace}})"
+          }
+        ]
+      },
+      {
+        "type": "bargauge",
+        "title": "Namespaces with CrashLoopBackOff Pods",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 9
+        },
+        "datasource": "${DS_CLUSTER}",
+        "targets": [
+          {
+            "refId": "A",
+            "expr": "topk(10, sum by (namespace) (kube_pod_container_status_waiting_reason{reason=\"CrashLoopBackOff\", namespace=~\"$namespace\"}))",
+            "instant": true,
+            "legendFormat": "{{namespace}}"
+          }
+        ]
+      },
+      {
+        "type": "stat",
+        "title": "Service Pods Ready / Not Ready",
+        "gridPos": {
+          "h": 4,
+          "w": 8,
+          "x": 0,
+          "y": 17
+        },
+        "datasource": "${DS_CLUSTER}",
+        "targets": [
+          {
+            "refId": "A",
+            "expr": "sum(kube_pod_status_ready{condition=\"true\", namespace=~\"$namespace\"}\n  * on (namespace, pod) group_left(label_service)\n    kube_pod_labels{namespace=~\"$namespace\", label_service=~\"$service\"})\n",
+            "instant": true,
+            "legendFormat": "ready"
+          },
+          {
+            "refId": "B",
+            "expr": "sum(kube_pod_status_ready{condition=\"false\", namespace=~\"$namespace\"}\n  * on (namespace, pod) group_left(label_service)\n    kube_pod_labels{namespace=~\"$namespace\", label_service=~\"$service\"})\n",
+            "instant": true,
+            "legendFormat": "not_ready"
+          }
+        ],
+        "options": {
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ]
+          }
+        }
+      },
+      {
+        "type": "stat",
+        "title": "Service Pod Restarts (1h)",
+        "gridPos": {
+          "h": 4,
+          "w": 8,
+          "x": 8,
+          "y": 17
+        },
+        "datasource": "${DS_CLUSTER}",
+        "targets": [
+          {
+            "refId": "A",
+            "expr": "sum(increase(kube_pod_container_status_restarts_total{namespace=~\"$namespace\"}[1h])\n  * on (namespace, pod) group_left(label_service)\n    kube_pod_labels{namespace=~\"$namespace\", label_service=~\"$service\"})\n",
+            "instant": true
+          }
+        ],
+        "options": {
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ]
+          }
+        }
+      },
+      {
+        "type": "stat",
+        "title": "Service CPU usage / requests",
+        "gridPos": {
+          "h": 4,
+          "w": 8,
+          "x": 16,
+          "y": 17
+        },
+        "datasource": "${DS_CLUSTER}",
+        "targets": [
+          {
+            "refId": "A",
+            "expr": "(sum(rate(container_cpu_usage_seconds_total{image!=\"\"}[$__rate_interval])\n   * on (namespace, pod) group_left(label_service)\n     kube_pod_labels{namespace=~\"$namespace\", label_service=~\"$service\"}))\n/ ignoring(unit)\n(sum(kube_pod_container_resource_requests{resource=\"cpu\", unit=\"core\", namespace=~\"$namespace\"}\n   * on (namespace, pod) group_left(label_service)\n     kube_pod_labels{namespace=~\"$namespace\", label_service=~\"$service\"}))\n",
+            "instant": true
+          }
+        ],
+        "options": {
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ]
+          }
+        }
+      },
+      {
+        "type": "table",
+        "title": "Pods (scoped to Service/Namespace)",
+        "gridPos": {
+          "h": 10,
+          "w": 24,
+          "x": 0,
+          "y": 21
+        },
+        "datasource": "${DS_CLUSTER}",
+        "options": {
+          "showHeader": true
+        },
+        "targets": [
+          {
+            "refId": "A",
+            "expr": "sum by (namespace, pod) (\n  kube_pod_status_phase{phase=\"Running\", namespace=~\"$namespace\"}\n  * on (namespace, pod) group_left(label_service)\n    kube_pod_labels{namespace=~\"$namespace\", label_service=~\"$service\"}\n)\n",
+            "instant": true,
+            "legendFormat": "{{pod}}"
+          },
+          {
+            "refId": "B",
+            "expr": "sum by (namespace, pod) (\n  increase(kube_pod_container_status_restarts_total{namespace=~\"$namespace\"}[1h])\n  * on (namespace, pod) group_left(label_service)\n    kube_pod_labels{namespace=~\"$namespace\", label_service=~\"$service\"}\n)\n",
+            "instant": true,
+            "legendFormat": "{{pod}}"
+          },
+          {
+            "refId": "C",
+            "expr": "sum by (namespace, pod) (\n  kube_pod_container_status_waiting_reason{reason=\"CrashLoopBackOff\", namespace=~\"$namespace\"}\n  * on (namespace, pod) group_left(label_service)\n    kube_pod_labels{namespace=~\"$namespace\", label_service=~\"$service\"}\n)\n",
+            "instant": true,
+            "legendFormat": "{{pod}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "links": [
+              {
+                "title": "Drill to Pod",
+                "url": "?var-ou=$ou&var-namespace=${__field.labels.namespace}&var-service=$service&var-pod=${__field.labels.pod}"
+              }
+            ]
+          },
+          "overrides": []
+        }
+      }
+    ]
+  },
+  "overwrite": false
+}

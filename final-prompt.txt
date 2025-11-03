@@ -1,0 +1,133 @@
+Perfect — I’ll tailor the **all-in-one, self-drilldown** dashboard prompt to your Prometheus datasource names **ABC-WEST** and **ABC-EAST**. Copy–paste this into your coding expert tool:
+
+```
+You will generate ONE Grafana dashboard (JSON) I can import directly. It must be production-ready and support self-drilldown: clicking any namespace/service/pod in a panel updates variables and reveals scoped detail panels on the same dashboard.
+
+TITLE & SCOPE
+- Title: "Cluster Namespace Ops – ${cluster}"
+- Purpose: One dashboard to monitor all namespaces/workloads in a single cluster (no node metrics).
+- Data source: Prometheus only (built-in panels: stat, table, timeseries, bargauge, row, text).
+- Default time: now-6h → now. Auto-refresh: 30s.
+- Layout: clean, with logical rows; Overview expanded; deep-dive rows collapsed by default.
+- Performance: use $__rate_interval for rates; prefer instant: true on ranking/count tables; no hard failures if a metric is missing.
+
+DATASOURCES (fixed)
+- Prometheus datasource names are EXACTLY: ABC-WEST and ABC-EAST.
+- The dashboard must include a datasource variable limited to these two.
+
+VARIABLES (critical for drilldown)
+1) DS  (type=datasource, query=prometheus, **regex: ^(ABC-WEST|ABC-EAST)$**, current default: ABC-WEST)
+2) cluster (type=custom, options: EAST|WEST, default EAST; used only for title/breadcrumb)
+3) namespace (type=query, ds=${DS}, includeAll=true, multi=true, allValue=".*",
+   query=label_values(kube_pod_info, namespace))
+4) service   (type=query, ds=${DS}, includeAll=true, multi=true, allValue=".*",
+   query=label_values(kube_service_info{namespace=~"$namespace"}, service))
+5) pod       (type=query, ds=${DS}, includeAll=true, multi=true, allValue=".*",
+   query=label_values(kube_pod_info{namespace=~"$namespace"}, pod))
+6) problem   (type=custom, default "", options: ""|CrashLoopBackOff|Failed|Pending)
+7) view      (type=custom, default "summary", options: summary|namespace|service|pod)
+
+SELF-DRILLDOWN (links must update variables on THIS dashboard)
+- Every table/bar/series item must have a Data link back to this dashboard, updating variables AND preserving the datasource:
+  • Click a namespace row → `?var-DS=${DS}&var-cluster=$cluster&var-namespace=${__field.labels.namespace}&var-service=All&var-pod=All&var-view=namespace`
+  • Click a service bar → `?var-DS=${DS}&var-cluster=$cluster&var-namespace=${__field.labels.namespace}&var-service=${__field.labels.service}&var-pod=All&var-view=service`
+  • Click a pod row → `?var-DS=${DS}&var-cluster=$cluster&var-namespace=${__field.labels.namespace}&var-service=All&var-pod=${__field.labels.pod}&var-view=pod`
+  • Click “CrashLoopBackOff” stat → `?var-DS=${DS}&var-cluster=$cluster&var-problem=CrashLoopBackOff&var-view=pod`
+- Add a small TEXT panel with a **Reset filters** link:
+  `?var-DS=${DS}&var-cluster=$cluster&var-namespace=All&var-service=All&var-pod=All&var-problem=&var-view=summary`
+
+ASSUMED METRICS (kube-prometheus style)
+- kube_*: kube_pod_info, kube_pod_status_phase, kube_service_info, kube_deployment_labels,
+  kube_pod_container_status_restarts_total, kube_resourcequota, kube_endpoint_address_available,
+  kube_endpoint_address_not_ready, kube_pod_container_status_waiting_reason
+- container_*: container_cpu_usage_seconds_total, container_memory_working_set_bytes,
+  container_network_receive_bytes_total, container_network_transmit_bytes_total,
+  container_cpu_cfs_throttled_seconds_total, container_cpu_cfs_periods_total
+- Optional: http_requests_total{service, status}
+
+ROWS & PANELS
+
+Row: Header / Filters (expanded)
+- TEXT: breadcrumbs `${cluster} → $namespace → $service → $pod` + Reset link (as above). Brief “No data?” hint.
+
+Row: Overview (expanded)
+- STAT: “CrashLoopBackOff Pods (now)”
+  expr: sum(kube_pod_container_status_waiting_reason{reason="CrashLoopBackOff", namespace=~"$namespace"}) (instant)
+  link sets `var-problem=CrashLoopBackOff&var-view=pod` (and preserves DS/cluster)
+- STAT: “Pod Restarts (1h)”
+  expr: sum(increase(kube_pod_container_status_restarts_total{namespace=~"$namespace"}[1h])) (instant)
+- STAT: “Pods Running”
+  expr: sum(kube_pod_status_phase{phase="Running", namespace=~"$namespace"}) (instant)
+- STAT: “Pods Pending”
+  expr: sum(kube_pod_status_phase{phase="Pending", namespace=~"$namespace"}) (instant)
+- STAT: “Pods Failed”
+  expr: sum(kube_pod_status_phase{phase="Failed", namespace=~"$namespace"}) (instant)
+- TABLE: “Namespaces – Health (Running / Pending / Terminating)”
+  RUN:  sum by (namespace) (kube_pod_status_phase{phase="Running", namespace=~"$namespace"}) (instant)
+  PEND: sum by (namespace) (kube_pod_status_phase{phase="Pending", namespace=~"$namespace"}) (instant)
+  TERM: sum by (namespace) (max by (namespace,pod) (kube_pod_deletion_timestamp{namespace=~"$namespace"} > 0)) (instant)
+  Data link on namespace → sets namespace + `var-view=namespace` (and preserves DS/cluster)
+
+Row: Resources by Namespace (collapsed)
+- TABLE: “CPU per Namespace (cores) – avg pod / max pod”
+  AVG: avg by (namespace) (sum by (namespace,pod) (rate(container_cpu_usage_seconds_total{image!=""}[$__rate_interval]))) (instant)
+  MAX: max by (namespace) (sum by (namespace,pod) (rate(container_cpu_usage_seconds_total{image!=""}[$__rate_interval]))) (instant)
+- TABLE: “Memory per Namespace (GiB) – avg pod / max pod”
+  AVG: avg by (namespace) (sum by (namespace,pod) (container_memory_working_set_bytes{container!=""})) / 1024^3 (instant)
+  MAX: max by (namespace) (sum by (namespace,pod) (container_memory_working_set_bytes{container!=""})) / 1024^3 (instant)
+- TABLE: “Resource Quotas vs Used (per Namespace)”
+  pods_used/hard, requests.cpu used/hard, requests.memory used/hard (GiB) (instant)
+- BARGAUGE: “Top 5 Namespaces by CPU (cores)”
+  topk(5, sum by (namespace) (sum by (namespace,pod) (rate(container_cpu_usage_seconds_total{image!=""}[$__rate_interval])))) (instant)
+- BARGAUGE: “Top 5 Namespaces by Memory (GiB)”
+  topk(5, sum by (namespace) (sum by (namespace,pod) (container_memory_working_set_bytes{container!=""})) / 1024^3) (instant)
+
+Row: Services (collapsed)
+- TABLE: “Active Services per Namespace”
+  expr: count by (namespace) (kube_service_info{namespace=~"$namespace"}) (instant)
+- TABLE: “Service Endpoints (up/down)”
+  UP:   sum by (namespace, service) (kube_endpoint_address_available{namespace=~"$namespace"}) (instant)
+  DOWN: sum by (namespace, service) (kube_endpoint_address_not_ready{namespace=~"$namespace"}) (instant)
+  Data link on service → sets namespace+service + `var-view=service` (preserve DS/cluster)
+- TIMESERIES: “Network Ingress by Service (KiB/s)”
+  sum by (service) (rate(container_network_receive_bytes_total{namespace=~"$namespace"}[$__rate_interval])) / 1024
+- TIMESERIES: “Network Egress by Service (KiB/s)”
+  sum by (service) (rate(container_network_transmit_bytes_total{namespace=~"$namespace"}[$__rate_interval])) / 1024
+- TABLE (optional): “HTTP Error Rate (req/s) – 4xx / 5xx”
+  4xx: sum by (service) (rate(http_requests_total{namespace=~"$namespace",status=~"4.."}[$__rate_interval])) (instant)
+  5xx: sum by (service) (rate(http_requests_total{namespace=~"$namespace",status=~"5.."}[$__rate_interval])) (instant)
+
+Row: Pods (collapsed)
+- TABLE: “Pods – State & Restarts”
+  RUN:  sum by (namespace, pod) (kube_pod_status_phase{phase="Running", namespace=~"$namespace"}) (instant)
+  RST:  sum by (namespace, pod) (increase(kube_pod_container_status_restarts_total{namespace=~"$namespace"}[1h])) (instant)
+  CRSH: sum by (namespace, pod) (kube_pod_container_status_waiting_reason{reason="CrashLoopBackOff", namespace=~"$namespace"}) (instant)
+  If `$problem` is set, sort/highlight matching rows first.
+  Data link on pod → sets namespace+pod + `var-view=pod` (preserve DS/cluster)
+- TIMESERIES (stacked): “CPU by Pod (cores)”
+  sum by (pod) (rate(container_cpu_usage_seconds_total{image!="" , namespace=~"$namespace"}[$__rate_interval]))
+- TIMESERIES (stacked): “Memory by Pod (GiB)”
+  sum by (pod) (container_memory_working_set_bytes{namespace=~"$namespace"}) / 1024^3
+
+Row: Selected Namespace Detail (visible when $namespace ≠ All)
+- STATs: Running/Pending/Failed pod counts; STAT: Restarts (1h) (instant)
+- TABLE: Top 10 pods by restarts (1h) with data links → set `pod` + `var-view=pod`
+
+Row: Selected Service Detail (visible when $service ≠ All)
+- STATs: Endpoints up/down for $service (instant)
+- TIMESERIES: Network In/Out for $service
+- TABLE: Pods backing $service (if label joins available; otherwise omit)
+
+Row: Selected Pod Detail (visible when $pod ≠ All)
+- STATs: Pod phase; Restarts (1h); CPU throttling ratio (5m) (instant)
+- TIMESERIES: CPU for $pod; TIMESERIES: Memory for $pod
+- TABLE: Containers in $pod with per-container CPU/Memory (instant)
+
+OUTPUT
+- Return a single JSON file: cluster-namespace-ops-allinone.json
+- Ensure the DS variable is regex-limited to **ABC-WEST|ABC-EAST** and defaults to **ABC-WEST**.
+- Ensure all Data links include `var-DS=${DS}` and `var-cluster=$cluster` so the selected datasource and cluster label persist during drilldown.
+- Rows must be tidy and collapsible; Overview visible by default.
+```
+
+If you’d like the default set to **ABC-EAST** instead, just swap that one line in the prompt.

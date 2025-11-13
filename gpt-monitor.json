@@ -29,20 +29,14 @@
     },
     {
       "type": "panel",
-      "id": "barchart",
-      "name": "Bar chart",
-      "version": ""
-    },
-    {
-      "type": "panel",
       "id": "bargauge",
       "name": "Bar gauge",
       "version": ""
     },
     {
       "type": "panel",
-      "id": "table",
-      "name": "Table",
+      "id": "barchart",
+      "name": "Bar chart",
       "version": ""
     },
     {
@@ -50,14 +44,15 @@
       "id": "timeseries",
       "name": "Time series",
       "version": ""
+    },
+    {
+      "type": "panel",
+      "id": "table",
+      "name": "Table",
+      "version": ""
     }
   ],
-  "title": "K8s Namespaces \u2014 Landing (Compact Visual)",
-  "tags": [
-    "kubernetes",
-    "namespaces",
-    "visual"
-  ],
+  "title": "K8s \u2014 Namespace Overview",
   "style": "dark",
   "schemaVersion": 38,
   "refresh": "30s",
@@ -65,26 +60,48 @@
     "from": "now-1h",
     "to": "now"
   },
+  "tags": [
+    "kubernetes",
+    "namespace",
+    "overview"
+  ],
   "templating": {
     "list": [
       {
-        "hide": 0,
-        "label": "Prometheus",
         "name": "DS_PROMETHEUS",
+        "type": "datasource",
         "query": "prometheus",
         "refresh": 1,
-        "type": "datasource"
+        "label": "Prometheus"
+      },
+      {
+        "name": "namespace",
+        "label": "Namespace",
+        "type": "query",
+        "refresh": 2,
+        "multi": false,
+        "includeAll": false,
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${DS_PROMETHEUS}"
+        },
+        "definition": "label_values(kube_pod_info, namespace)",
+        "query": {
+          "query": "label_values(kube_pod_info, namespace)",
+          "refId": "VarA"
+        },
+        "sort": 1
       }
     ]
   },
   "panels": [
     {
-      "id": 11,
-      "type": "piechart",
-      "title": "CPU Share by Namespace (Top 12)",
+      "id": 101,
+      "type": "gauge",
+      "title": "CPU % of Cluster (Namespace)",
       "gridPos": {
         "h": 8,
-        "w": 8,
+        "w": 6,
         "x": 0,
         "y": 0
       },
@@ -95,8 +112,8 @@
       "targets": [
         {
           "exemplar": true,
-          "expr": "topk(12, 100 *\nsum by (namespace) (\n  rate(container_cpu_usage_seconds_total{container!~\"POD|\", image!=\"\"}[5m])\n) / scalar(sum(kube_node_status_allocatable{resource=\"cpu\", unit=~\"core|cores\"})))",
-          "legendFormat": "{{namespace}}",
+          "expr": "100 *\nsum by (namespace) (\n  rate(container_cpu_usage_seconds_total{namespace=\"$namespace\",container!~\"POD|\", image!=\"\"}[5m])\n) / scalar(sum(kube_node_status_allocatable{resource=\"cpu\", unit=~\"core|cores\"}))",
+          "legendFormat": "{{$namespace}}",
           "refId": "A",
           "instant": false,
           "datasource": {
@@ -106,127 +123,24 @@
         }
       ],
       "options": {
-        "pieType": "donut",
-        "legend": {
-          "displayMode": "list",
-          "placement": "right"
-        },
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
           ]
         },
-        "displayLabels": [
-          "name",
-          "percent"
-        ]
+        "showThresholdMarkers": true,
+        "showThresholdLabels": false
       },
       "fieldConfig": {
         "defaults": {
           "unit": "percent",
-          "decimals": 2
-        },
-        "overrides": []
-      }
-    },
-    {
-      "id": 12,
-      "type": "piechart",
-      "title": "RAM Share by Namespace (Top 12)",
-      "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 8,
-        "y": 0
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "targets": [
-        {
-          "exemplar": true,
-          "expr": "topk(12, 100 *\nsum by (namespace) (\n  container_memory_working_set_bytes{container!~\"POD|\", image!=\"\"}\n) / scalar(sum(kube_node_status_allocatable{resource=\"memory\", unit=\"byte\"})))",
-          "legendFormat": "{{namespace}}",
-          "refId": "A",
-          "instant": false,
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          }
-        }
-      ],
-      "options": {
-        "pieType": "donut",
-        "legend": {
-          "displayMode": "list",
-          "placement": "right"
-        },
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ]
-        },
-        "displayLabels": [
-          "name",
-          "percent"
-        ]
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percent",
-          "decimals": 2
-        },
-        "overrides": []
-      }
-    },
-    {
-      "id": 13,
-      "type": "state-timeline",
-      "title": "CPU Saturation by Namespace (last hour)",
-      "gridPos": {
-        "h": 8,
-        "w": 16,
-        "x": 0,
-        "y": 8
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "targets": [
-        {
-          "exemplar": true,
-          "expr": "100 *\nsum by (namespace) (\n  rate(container_cpu_usage_seconds_total{container!~\"POD|\", image!=\"\"}[5m])\n) / scalar(sum(kube_node_status_allocatable{resource=\"cpu\", unit=~\"core|cores\"}))",
-          "legendFormat": "{{namespace}}",
-          "refId": "A",
-          "instant": false,
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          }
-        }
-      ],
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "right",
-          "showLegend": true
-        }
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percent",
+          "min": 0,
+          "max": 100,
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 30
+                "color": "green"
               },
               {
                 "color": "orange",
@@ -243,14 +157,14 @@
       }
     },
     {
-      "id": 14,
-      "type": "state-timeline",
-      "title": "RAM Saturation by Namespace (last hour)",
+      "id": 102,
+      "type": "gauge",
+      "title": "RAM % of Cluster (Namespace)",
       "gridPos": {
         "h": 8,
-        "w": 16,
-        "x": 16,
-        "y": 8
+        "w": 6,
+        "x": 6,
+        "y": 0
       },
       "datasource": {
         "type": "prometheus",
@@ -259,8 +173,8 @@
       "targets": [
         {
           "exemplar": true,
-          "expr": "100 *\nsum by (namespace) (\n  container_memory_working_set_bytes{container!~\"POD|\", image!=\"\"}\n) / scalar(sum(kube_node_status_allocatable{resource=\"memory\", unit=\"byte\"}))",
-          "legendFormat": "{{namespace}}",
+          "expr": "100 *\nsum by (namespace) (\n  container_memory_working_set_bytes{namespace=\"$namespace\",container!~\"POD|\", image!=\"\"}\n) / scalar(sum(kube_node_status_allocatable{resource=\"memory\", unit=\"byte\"}))",
+          "legendFormat": "{{$namespace}}",
           "refId": "A",
           "instant": false,
           "datasource": {
@@ -270,33 +184,32 @@
         }
       ],
       "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "right",
-          "showLegend": true
-        }
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "showThresholdMarkers": true,
+        "showThresholdLabels": false
       },
       "fieldConfig": {
         "defaults": {
           "unit": "percent",
+          "min": 0,
+          "max": 100,
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 60
+                "color": "green"
               },
               {
                 "color": "orange",
-                "value": 80
+                "value": 60
               },
               {
                 "color": "red",
-                "value": 90
+                "value": 80
               }
             ]
           }
@@ -305,60 +218,14 @@
       }
     },
     {
-      "id": 15,
+      "id": 103,
       "type": "barchart",
-      "title": "Top\u201110 Namespaces \u2014 Network RX (bytes/s)",
+      "title": "Network Now \u2014 RX/TX (bytes/s)",
       "gridPos": {
-        "h": 9,
-        "w": 12,
-        "x": 0,
-        "y": 16
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "targets": [
-        {
-          "exemplar": true,
-          "expr": "(sum by (namespace) (rate(container_network_receive_bytes_total[5m]))) and on(namespace) group_left (topk(10, (sum by (namespace) (rate(container_network_receive_bytes_total[5m]))) + (sum by (namespace) (rate(container_network_transmit_bytes_total[5m])))))",
-          "legendFormat": "{{namespace}}",
-          "refId": "A",
-          "instant": false,
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
-          }
-        }
-      ],
-      "options": {
-        "orientation": "horizontal",
-        "legend": {
-          "displayMode": "list",
-          "placement": "right"
-        },
-        "xTickLabelRotation": 0,
-        "barWidth": 0.8,
-        "stacking": "none",
-        "showValue": "auto"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "Bps",
-          "decimals": 1
-        },
-        "overrides": []
-      }
-    },
-    {
-      "id": 16,
-      "type": "barchart",
-      "title": "Top\u201110 Namespaces \u2014 Network TX (bytes/s)",
-      "gridPos": {
-        "h": 9,
+        "h": 8,
         "w": 12,
         "x": 12,
-        "y": 16
+        "y": 0
       },
       "datasource": {
         "type": "prometheus",
@@ -367,9 +234,20 @@
       "targets": [
         {
           "exemplar": true,
-          "expr": "(sum by (namespace) (rate(container_network_transmit_bytes_total[5m]))) and on(namespace) group_left (topk(10, (sum by (namespace) (rate(container_network_receive_bytes_total[5m]))) + (sum by (namespace) (rate(container_network_transmit_bytes_total[5m])))))",
-          "legendFormat": "{{namespace}}",
+          "expr": "sum by (namespace) (rate(container_network_receive_bytes_total{namespace=\"$namespace\"}[5m]))",
+          "legendFormat": "RX",
           "refId": "A",
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          }
+        },
+        {
+          "exemplar": true,
+          "expr": "sum by (namespace) (rate(container_network_transmit_bytes_total{namespace=\"$namespace\"}[5m]))",
+          "legendFormat": "TX",
+          "refId": "B",
           "instant": false,
           "datasource": {
             "type": "prometheus",
@@ -378,14 +256,12 @@
         }
       ],
       "options": {
-        "orientation": "horizontal",
+        "orientation": "vertical",
         "legend": {
           "displayMode": "list",
           "placement": "right"
         },
-        "xTickLabelRotation": 0,
-        "barWidth": 0.8,
-        "stacking": "none",
+        "stacking": "normal",
         "showValue": "auto"
       },
       "fieldConfig": {
@@ -397,14 +273,14 @@
       }
     },
     {
-      "id": 17,
-      "type": "bargauge",
-      "title": "Top PVCs by Used % (Top 10)",
+      "id": 104,
+      "type": "timeseries",
+      "title": "CPU % Trend (Namespace)",
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 25
+        "y": 8
       },
       "datasource": {
         "type": "prometheus",
@@ -413,8 +289,90 @@
       "targets": [
         {
           "exemplar": true,
-          "expr": "topk(10, 100 *\nkubelet_volume_stats_used_bytes\n/ ignoring(persistentvolumeclaim) group_left\nkubelet_volume_stats_capacity_bytes)",
-          "legendFormat": "{{namespace}}/{{persistentvolumeclaim}}",
+          "expr": "100 *\nsum by (namespace) (\n  rate(container_cpu_usage_seconds_total{namespace=\"$namespace\",container!~\"POD|\", image!=\"\"}[5m])\n) / scalar(sum(kube_node_status_allocatable{resource=\"cpu\", unit=~\"core|cores\"}))",
+          "legendFormat": "CPU %",
+          "refId": "A",
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "right",
+          "showLegend": true
+        }
+      }
+    },
+    {
+      "id": 105,
+      "type": "timeseries",
+      "title": "RAM % Trend (Namespace)",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "exemplar": true,
+          "expr": "100 *\nsum by (namespace) (\n  container_memory_working_set_bytes{namespace=\"$namespace\",container!~\"POD|\", image!=\"\"}\n) / scalar(sum(kube_node_status_allocatable{resource=\"memory\", unit=\"byte\"}))",
+          "legendFormat": "RAM %",
+          "refId": "A",
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "right",
+          "showLegend": true
+        }
+      }
+    },
+    {
+      "id": 106,
+      "type": "bargauge",
+      "title": "Top Pods by CPU (5m)",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 16
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "exemplar": true,
+          "expr": "topk(10, sum by (pod) (\n  rate(container_cpu_usage_seconds_total{namespace=\"$namespace\",container!~\"POD|\", image!=\"\"}[5m])\n))",
+          "legendFormat": "{{pod}}",
           "refId": "A",
           "instant": false,
           "datasource": {
@@ -429,9 +387,63 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "percent",
+          "unit": "cores",
           "thresholds": {
             "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "orange",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 2
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 107,
+      "type": "bargauge",
+      "title": "Top Pods by Memory",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 16
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "exemplar": true,
+          "expr": "topk(10, sum by (pod) (\n  container_memory_working_set_bytes{namespace=\"$namespace\",container!~\"POD|\", image!=\"\"}\n))",
+          "legendFormat": "{{pod}}",
+          "refId": "A",
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          }
+        }
+      ],
+      "options": {
+        "displayMode": "basic",
+        "orientation": "horizontal"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "thresholds": {
+            "mode": "percentage",
             "steps": [
               {
                 "color": "green"
@@ -451,14 +463,14 @@
       }
     },
     {
-      "id": 18,
-      "type": "table",
-      "title": "Pods by Namespace (Now)",
+      "id": 108,
+      "type": "piechart",
+      "title": "PVC Used % (Namespace)",
       "gridPos": {
         "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 25
+        "w": 8,
+        "x": 0,
+        "y": 24
       },
       "datasource": {
         "type": "prometheus",
@@ -467,8 +479,58 @@
       "targets": [
         {
           "exemplar": true,
-          "expr": "count by (namespace) (kube_pod_info)",
-          "legendFormat": "{{namespace}}",
+          "expr": "100 *\nkubelet_volume_stats_used_bytes{namespace=\"$namespace\"}\n/ ignoring(persistentvolumeclaim) group_left\nkubelet_volume_stats_capacity_bytes{namespace=\"$namespace\"}",
+          "legendFormat": "{{persistentvolumeclaim}}",
+          "refId": "A",
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          }
+        }
+      ],
+      "options": {
+        "pieType": "donut",
+        "legend": {
+          "displayMode": "list",
+          "placement": "right"
+        },
+        "displayLabels": [
+          "name",
+          "percent"
+        ],
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 109,
+      "type": "piechart",
+      "title": "Pods by Phase",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 24
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "exemplar": true,
+          "expr": "count by (phase) (kube_pod_status_phase{namespace=\"$namespace\"})",
+          "legendFormat": "{{phase}}",
           "refId": "A",
           "instant": true,
           "datasource": {
@@ -478,11 +540,78 @@
         }
       ],
       "options": {
-        "showHeader": true
+        "pieType": "donut",
+        "legend": {
+          "displayMode": "list",
+          "placement": "right"
+        },
+        "displayLabels": [
+          "name",
+          "value"
+        ]
       },
       "fieldConfig": {
         "defaults": {
           "unit": "none"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 110,
+      "type": "gauge",
+      "title": "Namespace PVC Used % (Total)",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 24
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "targets": [
+        {
+          "exemplar": true,
+          "expr": "100 *\n(sum by (namespace) (kubelet_volume_stats_used_bytes{namespace=\"$namespace\"}))\n/ scalar(sum(kubelet_volume_stats_capacity_bytes{namespace=\"$namespace\"}))",
+          "legendFormat": "PVC %",
+          "refId": "A",
+          "instant": false,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          }
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "orange",
+                "value": 70
+              },
+              {
+                "color": "red",
+                "value": 90
+              }
+            ]
+          }
         },
         "overrides": []
       }

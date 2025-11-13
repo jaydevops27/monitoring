@@ -1,0 +1,47 @@
+Totally doable. Here’s the fastest way to verify if you have cluster CPU/RAM capacity metrics (so we can compute “namespace % of total cluster”):
+Check in Grafana → Explore (Prometheus data source)
+Paste these one by one. If they return a number (not “no data”), you’re good.
+Cluster capacity (kube-state-metrics style):
+sum(kube_node_status_capacity{resource="cpu",   unit=~"core|cores"})
+sum(kube_node_status_allocatable{resource="cpu",unit=~"core|cores"})
+
+sum(kube_node_status_capacity{resource="memory",   unit="byte"})
+sum(kube_node_status_allocatable{resource="memory",unit="byte"})
+If you’re on an older KSM, try the legacy forms (sometimes exposed by distros):
+sum(kube_node_status_capacity_cpu_cores)
+sum(kube_node_status_allocatable_cpu_cores)
+sum(kube_node_status_capacity_memory_bytes)
+sum(kube_node_status_allocatable_memory_bytes)
+These metrics come from kube-state-metrics and represent per-node capacity/allocatable; summing gives cluster totals. 
+Grafana Labs
++2
+GitHub
++2
+Fallback (node exporter / cAdvisor style):
+sum(machine_cpu_cores)
+sum(node_memory_MemTotal_bytes)
+(If these return data but the KSM ones don’t, we can still compute percentages.) 
+Stack Overflow
+Quick smoke test for usage (to prove the denominator is usable)
+Pick any namespace (replace $ns) and verify numerators also exist:
+# Namespace CPU (cores)
+sum(rate(container_cpu_usage_seconds_total{namespace="$ns",container!~"POD|",image!=""}[5m]))
+
+# Namespace Memory (bytes)
+sum(container_memory_working_set_bytes{namespace="$ns",container!~"POD|",image!=""})
+These come from kubelet/cAdvisor; if they return data, we can compute:
+CPU % of cluster = (namespace CPU) / (cluster CPU allocatable) * 100
+RAM % of cluster = (namespace Mem) / (cluster Mem allocatable) * 100
+prometheus.io
+If capacity queries return “no data”:
+Your Prometheus likely isn’t scraping kube-state-metrics (or access is restricted). Enable/scrape KSM or allow those series; otherwise we can only show “share of total usage across namespaces”, not “% of total cluster capacity”.
+GitHub
+If you do see capacity, I’ll proceed to wire the PromQL for:
+namespace CPU/RAM % of cluster,
+resource counts,
+per-pod CPU/Memory,
+PVC usage (via kubelet_volume_stats_*),
+network I/O (via container_network_{receive,transmit}_bytes_total). 
+Prometheus Monitoring System
++1
+One question: Can you run those checks and tell me which of the capacity queries return data (KSM and/or node-exporter)?
